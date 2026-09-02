@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -8,6 +10,20 @@ plugins {
 // المتجر — ومُثبِّت أندرويد نفسه — يرفض تثبيت حزمة برقم أقلّ من المثبَّتة،
 // فلو تشارك APK المعماريّات الرقم نفسه لتعذّر الانتقال بينها.
 val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
+
+// بيانات التوقيع تأتي من ملفٍّ محلّيٍّ مستثنى من git، أو من متغيّرات البيئة في CI.
+// لا تُكتَب في المصدر بحالٍ: مفتاح التوقيع هو هويّة التطبيق عند أندرويد، ومن ملكه
+// استطاع نشر تحديثٍ ينتحل صفة GMD على أجهزة من ثبّته.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun signingValue(key: String, env: String): String? =
+    keystoreProps.getProperty(key)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(env)?.takeIf { it.isNotBlank() }
+
+val hasSigningKey = signingValue("storeFile", "GMD_KEYSTORE_FILE") != null
 
 android {
     namespace = "com.gnutux.gmd"
@@ -35,8 +51,25 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasSigningKey) {
+                storeFile = file(signingValue("storeFile", "GMD_KEYSTORE_FILE")!!)
+                storePassword = signingValue("storePassword", "GMD_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "GMD_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "GMD_KEY_PASSWORD")
+                // v1 لأجهزة أندرويد 6 وما دون، وv2/v3 لما بعدها
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // بلا مفتاحٍ تخرج الحزمة غير موقَّعة فيرفض أندرويد تثبيتها؛ نتركها تُبنى
+            // لأنّ البناء المحلّيّ للتجربة لا يحتاج مفتاحاً، والنشر يفشل في CI عمداً.
+            signingConfig = if (hasSigningKey) signingConfigs.getByName("release") else null
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
