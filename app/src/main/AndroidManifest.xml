@@ -15,6 +15,15 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <!-- قراءة الوسائط: لا تُطلب لعرض ما نزّله GMD ما دام مالكَه، وأندرويد يُسقط
+         المِلكيّة إن أُزيل التطبيق ثمّ أُعيد تثبيته — لا عند التحديث فوقه — فتختفي
+         مقاطعُ المستخدم من المعرض وهي في مكانها. فتُطلب حينئذٍ لا قبله. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
     <application
         android:name=".GmdApp"
         android:allowBackup="true"

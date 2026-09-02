@@ -106,4 +106,8 @@
     <string name="language_system">Automatic</string>
     <string name="language_ar">العربية</string>
     <string name="language_en">English</string>
+    <string name="gallery_empty_no_access">If you have downloaded before, the files are still in Movies/GMD — Android hides them from GMD because the app was reinstalled, and one permission brings them back.</string>
+    <string name="gallery_grant_access">Show my files</string>
+    <string name="gallery_missing_older">Missing clips you downloaded earlier? Grant access to media</string>
+    <string name="gallery_open_settings">Open app settings</string>
 </resources>

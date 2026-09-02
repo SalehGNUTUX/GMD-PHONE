@@ -4,12 +4,14 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Size
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -44,6 +46,29 @@ object MediaLibrary {
 
     private const val FOLDER = "GMD"
 
+    /**
+     * أذونُ قراءةِ الوسائطِ اللازمةُ لرؤيةِ ملفّاتٍ لم يَعُد التطبيقُ مالكَها.
+     *
+     * أندرويد يُري التطبيقَ ما أنشأه بلا إذن، لكنّه يُسقِطُ المِلكيّةَ إن أُزيلَ
+     * التطبيقُ ثمّ أُعيدَ تثبيتُه — لا عندَ التحديثِ فوقَه — فتختفي مقاطعُ المستخدمِ
+     * من المعرضِ وهي باقيةٌ في `Movies/GMD`. وهذه الأذونُ تُعيدُها إلى الرؤية.
+     */
+    fun readPermissions(): Array<String> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            arrayOf(
+                android.Manifest.permission.READ_MEDIA_VIDEO,
+                android.Manifest.permission.READ_MEDIA_AUDIO,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+
+    fun hasReadPermission(context: Context): Boolean =
+        readPermissions().any {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+
     suspend fun list(context: Context): List<MediaEntry> = withContext(Dispatchers.IO) {
         (query(context, isAudio = false) + query(context, isAudio = true))
             .sortedByDescending { it.addedSeconds }
@@ -72,8 +97,9 @@ object MediaLibrary {
             val root = if (isAudio) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES
             "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?" to arrayOf("$root/$FOLDER%")
         } else {
+            val root = if (isAudio) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES
             @Suppress("DEPRECATION")
-            "${MediaStore.MediaColumns.DATA} LIKE ?" to arrayOf("%/$FOLDER/%")
+            "${MediaStore.MediaColumns.DATA} LIKE ?" to arrayOf("%/$root/$FOLDER/%")
         }
 
         val out = mutableListOf<MediaEntry>()

@@ -2,11 +2,15 @@ package com.gnutux.gmd.ui
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
+import android.net.Uri
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -47,6 +51,7 @@ fun GalleryScreen() {
     var items by remember { mutableStateOf<List<MediaEntry>?>(null) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var hasRead by remember { mutableStateOf(MediaLibrary.hasReadPermission(context)) }
 
     val deletedLabel = stringResource(R.string.gallery_deleted)
     val noAppLabel = stringResource(R.string.gallery_no_player)
@@ -63,6 +68,41 @@ fun GalleryScreen() {
                 Toast.makeText(context, deletedLabel, Toast.LENGTH_SHORT).show()
             }
             reload()
+        }
+    }
+
+    // إذنُ قراءةِ الوسائط: يُطلَبُ عندَ الحاجةِ إليه لا عندَ الإقلاع، فالحالةُ
+    // الغالبةُ — مقاطعُ نزّلها التطبيقُ وما زالَ مالكَها — لا تحتاجُه أصلاً.
+    var accessBlocked by remember { mutableStateOf(false) }
+
+    val askRead = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        hasRead = granted.values.any { it } || MediaLibrary.hasReadPermission(context)
+        // من رفض الإذنَ مرّتين يمنعُه أندرويد من رؤية النافذة ثانيةً، فيعودُ الطلبُ
+        // فوراً بالرفض ولا يظهرُ للمستخدم شيء. ولا يُميَّزُ هذا الرفضُ الصامتُ عن
+        // رفضٍ حقيقيٍّ إلّا بأنّ النظامَ يمتنعُ عن عرض التبرير — فحينَها الطريقُ
+        // الوحيدُ صفحةُ إعدادات التطبيق، ولا يُترَكُ المستخدمُ أمام زرٍّ لا يفعل شيئاً.
+        if (!hasRead) {
+            val activity = context as? Activity
+            accessBlocked = activity != null && MediaLibrary.readPermissions().none {
+                ActivityCompat.shouldShowRequestPermissionRationale(activity, it)
+            }
+        }
+        scope.launch { reload() }
+    }
+
+    /** يطلبُ الإذنَ، فإن كان النظامُ قد أغلقَ بابَ الطلبِ فتحَ صفحةَ الإعدادات. */
+    fun requestAccess() {
+        if (accessBlocked) {
+            runCatching {
+                context.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null))
+                )
+            }
+        } else {
+            askRead.launch(MediaLibrary.readPermissions())
         }
     }
 
@@ -116,9 +156,22 @@ fun GalleryScreen() {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(R.string.gallery_empty),
                         style = MaterialTheme.typography.titleSmall)
-                    Text(stringResource(R.string.gallery_empty_hint),
+                    Text(
+                        stringResource(
+                            if (hasRead) R.string.gallery_empty_hint
+                            else R.string.gallery_empty_no_access
+                        ),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (!hasRead) {
+                        Button(onClick = { requestAccess() }) {
+                            Text(stringResource(
+                                if (accessBlocked) R.string.gallery_open_settings
+                                else R.string.gallery_grant_access
+                            ))
+                        }
+                    }
                 }
             }
 
@@ -140,6 +193,17 @@ fun GalleryScreen() {
                         }
                     },
                     onLongClick = { selected = if (isSelected) selected - key else selected + key },
+                )
+            }
+        }
+
+        // القائمةُ قد تكونُ عامرةً وينقصُها ما فقدَ التطبيقُ مِلكيّتَه، ولا سبيلَ إلى
+        // معرفةِ ذلك بلا الإذنِ نفسِه — فيبقى العرضُ متاحاً بلا إلحاح.
+        if (!hasRead && !list.isNullOrEmpty()) {
+            TextButton(onClick = { requestAccess() }) {
+                Text(
+                    stringResource(R.string.gallery_missing_older),
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }

@@ -106,4 +106,8 @@
     <string name="language_system">تلقائيّ</string>
     <string name="language_ar">العربية</string>
     <string name="language_en">English</string>
+    <string name="gallery_empty_no_access">إن كنتَ نزّلتَ من قبلُ فالملفّاتُ باقيةٌ في Movies/GMD — أندرويد يحجبُها عن GMD لأنّ التطبيقَ أُعيدَ تثبيتُه، وإذنٌ واحدٌ يُعيدُها.</string>
+    <string name="gallery_grant_access">أظهِر ملفّاتي</string>
+    <string name="gallery_missing_older">تفقدُ مقاطعَ نزّلتَها سابقاً؟ اسمح بالوصولِ إلى الوسائط</string>
+    <string name="gallery_open_settings">افتح إعداداتِ التطبيق</string>
 </resources>
