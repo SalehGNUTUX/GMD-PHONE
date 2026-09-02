@@ -13,6 +13,7 @@ coroutines = "1.9.0"
 work = "2.10.0"
 # مكتبة yt-dlp لأندرويد: الانشقاق المُصان الذي يعتمده YTDLnis و Seal.
 # ffmpeg مثبَّتة على 0.17.2 عمداً اقتداءً بـYTDLnis — إصدارات 0.18.x منها غير مستقرّة.
+coil = "2.7.0"
 youtubedl = "0.18.1"
 youtubedlFfmpeg = "0.17.2"
 
@@ -34,6 +35,7 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "work" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 youtubedl-library = { group = "io.github.junkfood02.youtubedl-android", name = "library", version.ref = "youtubedl" }
 youtubedl-aria2c = { group = "io.github.junkfood02.youtubedl-android", name = "aria2c", version.ref = "youtubedl" }
 youtubedl-ffmpeg = { group = "io.github.junkfood02.youtubedl-android", name = "ffmpeg", version.ref = "youtubedlFfmpeg" }

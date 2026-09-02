@@ -30,7 +30,7 @@ import com.gnutux.gmd.ToolsState
 import com.gnutux.gmd.download.DownloadService
 import com.gnutux.gmd.download.Progress
 
-enum class Screen { Menu, Video, Audio, Info, Settings }
+enum class Screen { Menu, Video, Audio, Gallery, Info, Settings }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +63,7 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                             Screen.Menu -> stringResource(R.string.app_title)
                             Screen.Video -> stringResource(R.string.video_title)
                             Screen.Audio -> stringResource(R.string.audio_title)
+                            Screen.Gallery -> stringResource(R.string.gallery_title)
                             Screen.Info -> stringResource(R.string.info_title)
                             Screen.Settings -> stringResource(R.string.settings_title)
                         },
@@ -112,8 +113,15 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
 
             when (screen) {
                 Screen.Menu -> MenuScreen(onPick = { screen = it })
-                Screen.Video -> DownloadScreen(vm, progress, isAudio = false, enabled = tools is ToolsState.Ready)
-                Screen.Audio -> DownloadScreen(vm, progress, isAudio = true, enabled = tools is ToolsState.Ready)
+                Screen.Video -> DownloadScreen(
+                    vm, progress, isAudio = false, enabled = tools is ToolsState.Ready,
+                    onOpenGallery = { screen = Screen.Gallery },
+                )
+                Screen.Audio -> DownloadScreen(
+                    vm, progress, isAudio = true, enabled = tools is ToolsState.Ready,
+                    onOpenGallery = { screen = Screen.Gallery },
+                )
+                Screen.Gallery -> GalleryScreen()
                 Screen.Info -> InfoScreen(vm, enabled = tools is ToolsState.Ready)
                 Screen.Settings -> SettingsScreen(vm)
             }
@@ -183,6 +191,7 @@ private fun MenuScreen(onPick: (Screen) -> Unit) {
     val items = listOf(
         Item(Screen.Video, Icons.Filled.Movie, R.string.menu_video),
         Item(Screen.Audio, Icons.Filled.MusicNote, R.string.menu_audio),
+        Item(Screen.Gallery, Icons.Filled.PhotoLibrary, R.string.menu_gallery),
         Item(Screen.Info, Icons.Filled.Info, R.string.menu_info),
         Item(Screen.Settings, Icons.Filled.Settings, R.string.menu_settings),
     )

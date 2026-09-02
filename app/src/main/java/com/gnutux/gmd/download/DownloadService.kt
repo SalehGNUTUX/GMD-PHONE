@@ -14,6 +14,7 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.gnutux.gmd.MainActivity
 import com.gnutux.gmd.R
+import com.gnutux.gmd.data.LocalePrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,7 +27,8 @@ import kotlinx.coroutines.launch
 sealed interface Progress {
     data object Idle : Progress
     data class Running(val percent: Float, val etaSeconds: Long, val line: String) : Progress
-    data class Done(val displayName: String, val relativePath: String) : Progress
+    /** [uri] عنوانُ المدخلِ في معرضِ الوسائط — بدونِه لا فتحَ ولا مشاركةَ للناتج. */
+    data class Done(val displayName: String, val relativePath: String, val uri: String) : Progress
     data class Failed(val message: String) : Progress
 }
 
@@ -44,6 +46,11 @@ class DownloadService : Service() {
     private var currentProcessId: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /** الإشعاراتُ تُكتَبُ بلغةِ الواجهةِ المختارة، لا بلغةِ النظامِ وحدَها. */
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(base))
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -85,7 +92,8 @@ class DownloadService : Service() {
                 onSuccess = { file ->
                     MediaStoreSaver.save(applicationContext, file, isAudio).fold(
                         onSuccess = { saved ->
-                            _progress.value = Progress.Done(saved.displayName, saved.relativePath)
+                            _progress.value =
+                                Progress.Done(saved.displayName, saved.relativePath, saved.uri.toString())
                             notify(buildNotification(100, getString(R.string.notif_done), ongoing = false,
                                 text = saved.displayName))
                         },

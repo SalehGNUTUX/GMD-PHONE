@@ -1,6 +1,7 @@
 package com.gnutux.gmd
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -11,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gnutux.gmd.data.LocalePrefs
 import com.gnutux.gmd.ui.GmdApp as GmdUi
 import com.gnutux.gmd.ui.GmdTheme
 import com.gnutux.gmd.ui.GmdViewModel
@@ -21,6 +23,11 @@ class MainActivity : ComponentActivity() {
 
     private val askNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** اللغةُ تُطبَّقُ قبلَ تحميلِ أيِّ مورد، وإلّا ظهرت الشاشةُ بلغةِ النظامِ ثمّ ارتدّت. */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocalePrefs.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

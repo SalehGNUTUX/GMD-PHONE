@@ -8,9 +8,13 @@ import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.Downloader
 import com.gnutux.gmd.download.MediaInfo
 import com.gnutux.gmd.download.Quality
+import com.gnutux.gmd.GmdApp
+import com.gnutux.gmd.ToolsState
 import com.gnutux.gmd.update.Updater
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
@@ -54,10 +58,36 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
 
     @Volatile private var cancelDownload = false
 
+    private var autoInfoJob: Job? = null
+
+    /**
+     * كلُّ تغييرٍ للرابطِ يُطلِقُ جلبَ المعلوماتِ من تلقائِه، بعدَ مهلةٍ قصيرة.
+     *
+     * المهلةُ ليست زينة: `setUrl` تُستدعى على كلِّ حرفٍ يُكتَب، وبلا تأخيرٍ يُشغَّلُ
+     * yt-dlp عشراتِ المرّاتِ في ثانية. وكلُّ استدعاءٍ جديدٍ يُلغي سابقَه، فلا تصلُ
+     * إلّا نتيجةُ الرابطِ الأخير.
+     */
     fun setUrl(value: String) {
         url.value = value
         _info.value = null
         _infoError.value = null
+        autoInfoJob?.cancel()
+        _infoLoading.value = false
+
+        val target = value.trim()
+        if (!target.startsWith("http")) return
+
+        autoInfoJob = viewModelScope.launch {
+            delay(AUTO_INFO_DELAY_MS)
+            // الأدواتُ قد تكونُ ما تزالُ تُهيَّأُ عندَ أوّلِ تشغيل
+            if (GmdApp.instance.tools.value !is ToolsState.Ready) return@launch
+            _infoLoading.value = true
+            Downloader.fetchInfo(target).fold(
+                onSuccess = { _info.value = it },
+                onFailure = { _infoError.value = it.message ?: "failed" },
+            )
+            _infoLoading.value = false
+        }
     }
 
     fun loadInfo() {
@@ -133,4 +163,9 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
 
     fun cancelUpdateDownload() { cancelDownload = true }
     fun dismissUpdate() { _update.value = UpdatePhase.Idle }
+
+    private companion object {
+        /** مهلةُ الهدوءِ قبلَ سؤالِ yt-dlp عن رابطٍ يُكتَبُ حرفاً حرفاً. */
+        const val AUTO_INFO_DELAY_MS = 700L
+    }
 }

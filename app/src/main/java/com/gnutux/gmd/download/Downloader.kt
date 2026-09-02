@@ -17,11 +17,29 @@ sealed interface Job {
     data class Audio(override val url: String, val format: AudioFormat) : Job
 }
 
-enum class Quality(val selector: String, val label: String) {
-    BEST("bestvideo+bestaudio/best", "qbest"),
-    P1080("bv*[height<=1080]+ba/best[height<=1080]", "q1080"),
-    P720("bv*[height<=720]+ba/best[height<=720]", "q720"),
-    P480("bv*[height<=480]+ba/best[height<=480]", "q480"),
+/**
+ * الجودةُ سقفٌ على **الضلعِ الأصغر**، لا على الارتفاع.
+ *
+ * كانت السلسلةُ ترشِّحُ بـ`height` وحدَه: `bv*[height<=720]+ba/best[height<=720]`.
+ * وهذا صحيحٌ في الفيديو الأفقيِّ حيثُ الارتفاعُ هو الضلعُ الأصغر، وخاطئٌ في العموديِّ
+ * حيثُ ينقلبُ الأمر: مقطعُ «720p» عموديّاً مقاسُه 720×1280، فارتفاعُه 1280 يتجاوزُ
+ * كلَّ سقفٍ يطلبُه المستخدم — حتّى سقفَ 1080 — فلا تُطابِقُ الشرطَ صيغةٌ واحدةٌ
+ * ويموتُ التنزيلُ بـ`Requested format is not available`. ومقاطعُ فيسبوك عموديّةٌ
+ * في غالبِها، فظهرَ العطبُ هناك أوّلاً، لا لأنّ فيسبوك خاصٌّ بشيء.
+ *
+ * فتُرِكَ الترشيحُ إلى `-S res:N`، وحقلُ `res` عندَ yt-dlp هو الضلعُ الأصغرُ نفسُه،
+ * فيَصحُّ في الاتّجاهَين. وهو ترتيبٌ لا شرطٌ قاطع: يُقدِّمُ الأقربَ عندَ السقفِ أو
+ * دونَه، فإن لم يكن في المصدرِ إلّا ما فوقَه اختارَ أصغرَ ما فوقَه بدلَ أن يفشل.
+ * و`[height>0]` يستبعدُ الصيغَ التي لا تُعلِنُ مقاسَها (‏`sd`/`hd` في فيسبوك) من
+ * التفضيلِ الأوّل، لأنّ المجهولَ يتصدّرُ ترتيبَ `res` زوراً، ويُبقيها احتياطاً أخيراً.
+ */
+private const val CAPPED = "bv*[height>0]+ba/b[height>0]/bv*+ba/b"
+
+enum class Quality(val selector: String, val sort: String?, val label: String) {
+    BEST("bv*+ba/b", null, "qbest"),
+    P1080(CAPPED, "res:1080", "q1080"),
+    P720(CAPPED, "res:720", "q720"),
+    P480(CAPPED, "res:480", "q480"),
 }
 
 enum class AudioFormat(val ext: String) {
@@ -86,6 +104,7 @@ object Downloader {
                 when (job) {
                     is Job.Video -> {
                         addOption("-f", job.quality.selector)
+                        job.quality.sort?.let { addOption("-S", it) }
                         addOption("--merge-output-format", "mp4")
                     }
                     is Job.Audio -> {

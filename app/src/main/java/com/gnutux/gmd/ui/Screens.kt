@@ -1,10 +1,14 @@
 package com.gnutux.gmd.ui
 
+import android.app.Activity
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,11 +20,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.gnutux.gmd.R
 import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.DownloadService
+import com.gnutux.gmd.data.LocalePrefs
 import com.gnutux.gmd.download.Progress
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.update.Updater
@@ -52,7 +60,13 @@ private fun UrlField(vm: GmdViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun DownloadScreen(vm: GmdViewModel, progress: Progress, isAudio: Boolean, enabled: Boolean) {
+fun DownloadScreen(
+    vm: GmdViewModel,
+    progress: Progress,
+    isAudio: Boolean,
+    enabled: Boolean,
+    onOpenGallery: () -> Unit,
+) {
     val context = LocalContext.current
     val url by vm.url.collectAsStateWithLifecycle()
     val quality by vm.quality.collectAsStateWithLifecycle()
@@ -61,6 +75,7 @@ fun DownloadScreen(vm: GmdViewModel, progress: Progress, isAudio: Boolean, enabl
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         UrlField(vm)
+        MediaPreviewCard(vm)
 
         Text(
             stringResource(if (isAudio) R.string.format else R.string.quality),
@@ -123,29 +138,213 @@ fun DownloadScreen(vm: GmdViewModel, progress: Progress, isAudio: Boolean, enabl
         }
 
         when (progress) {
-            is Progress.Done -> ResultCard(
-                icon = Icons.Filled.CheckCircle,
-                title = stringResource(R.string.notif_done),
-                body = "${progress.displayName}\n${stringResource(R.string.save_to)}: ${progress.relativePath}",
-                action = stringResource(R.string.open_folder) to {
-                    runCatching {
-                        context.startActivity(
-                            Intent(Intent.ACTION_VIEW).apply {
-                                type = if (isAudio) "audio/*" else "video/*"
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                        )
-                    }
-                    Unit
-                },
-            )
-            is Progress.Failed -> ResultCard(
-                icon = Icons.Filled.ErrorOutline,
-                title = stringResource(R.string.notif_failed),
-                body = progress.message,
-                error = true,
-            )
+            is Progress.Done -> DoneCard(progress, isAudio, onOpenGallery)
+            is Progress.Failed -> FailureCard(vm, progress.message)
             else -> Unit
+        }
+    }
+}
+
+/**
+ * بطاقةُ الفشل.
+ *
+ * خرجُ yt-dlp يفتحُ غالباً بتحذيرِ قِدَمِ النسخةِ — خمسةُ أسطرٍ — فيغرقُ سطرُ
+ * `ERROR:` تحتَه، فنرفعُ أسطرَ الخطأِ إلى الأعلى ونُبقي الخرجَ كاملاً للنسخ.
+ * ثمّ نترجمُ الأعطابَ الشائعةَ إلى نصيحةٍ قابلةٍ للتنفيذ: رسالةٌ إنجليزيّةٌ لا
+ * إجراءَ لها تتركُ المستخدمَ واقفاً، وأكثرُ ما يُصلِحُها تحديثُ yt-dlp نفسِه
+ * لأنّ المواقعَ تتغيّرُ أسرعَ من الحزمةِ المشحونةِ في التطبيق.
+ */
+@Composable
+private fun FailureCard(vm: GmdViewModel, message: String) {
+    val context = LocalContext.current
+
+    val errorLines = remember(message) {
+        message.lineSequence()
+            .filter { it.trimStart().startsWith("ERROR:") }
+            .joinToString("\n")
+            .ifBlank { message.trim() }
+    }
+
+    val hint = remember(message) {
+        when {
+            message.contains("Requested format is not available", true) -> R.string.err_no_format
+            message.contains("Unsupported URL", true) ||
+                message.contains("Unable to extract", true) ||
+                message.contains("Cannot parse data", true) ||
+                message.contains("login required", true) ||
+                message.contains("private video", true) -> R.string.err_extractor
+            message.contains("Unable to download webpage", true) ||
+                message.contains("HTTP Error", true) ||
+                message.contains("timed out", true) ||
+                message.contains("Temporary failure in name resolution", true) -> R.string.err_network
+            else -> null
+        }
+    }
+    val offerToolUpdate = hint == R.string.err_no_format ||
+        hint == R.string.err_extractor ||
+        message.contains("older than", true)
+
+    var updating by remember(message) { mutableStateOf(false) }
+    var updateResult by remember(message) { mutableStateOf<String?>(null) }
+
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Filled.ErrorOutline, null)
+                Text(stringResource(R.string.notif_failed), style = MaterialTheme.typography.titleSmall)
+            }
+            Text(errorLines, style = MaterialTheme.typography.bodySmall)
+            hint?.let { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
+            updateResult?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (offerToolUpdate) {
+                    TextButton(
+                        enabled = !updating,
+                        onClick = {
+                            updating = true
+                            updateResult = null
+                            vm.updateYtDlp { ok ->
+                                updating = false
+                                updateResult = context.getString(
+                                    if (ok) R.string.ytdlp_updated else R.string.ytdlp_update_failed
+                                )
+                            }
+                        },
+                    ) {
+                        Text(stringResource(
+                            if (updating) R.string.ytdlp_updating else R.string.ytdlp_update
+                        ))
+                    }
+                }
+                TextButton(onClick = {
+                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("GMD", message))
+                    Toast.makeText(context, context.getString(R.string.error_copied),
+                        Toast.LENGTH_SHORT).show()
+                }) {
+                    Text(stringResource(R.string.copy_error))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * بطاقةُ المقطعِ قبلَ تنزيله: صورتُه المصغَّرةُ وعنوانُه ومدّتُه.
+ *
+ * تظهرُ من تلقائِها بعدَ لصقِ الرابط — لا زرَّ لجلبِها — لأنّ المستخدمَ يريدُ أن
+ * يتيقّنَ أنّ الرابطَ هو المقصودُ قبلَ أن يبدأَ تنزيلاً قد يبلغُ مئاتِ الميغابايت.
+ * وإن فشلَ الجلبُ لم نُظهِر شيئاً: التنزيلُ نفسُه سيُبلّغُ عن العطبِ إن وقع، ولا
+ * معنى لإنذارِ المستخدمِ مرّتين.
+ */
+@Composable
+private fun MediaPreviewCard(vm: GmdViewModel) {
+    val info by vm.info.collectAsStateWithLifecycle()
+    val loading by vm.infoLoading.collectAsStateWithLifecycle()
+
+    if (loading) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            Text(stringResource(R.string.fetching_info),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
+
+    val i = info ?: return
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            i.thumbnail?.let { url ->
+                AsyncImage(
+                    model = url,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(width = 104.dp, height = 68.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(i.title, style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    listOf(i.uploader, i.duration).filter { it != "\u2014" }.joinToString("  \u00b7  "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * بطاقةُ الاكتمال.
+ *
+ * كان زرُّ «فتح المجلّد» يُطلِقُ `ACTION_VIEW` بنوعٍ بلا عنوانٍ إطلاقاً، وهي نيّةٌ
+ * لا يقبلُها أيُّ تطبيق، فلم يكن يحدثُ شيءٌ عندَ نقره — ولم تكن العلّةُ صلاحيّات.
+ * صارَ للمستخدمِ ثلاثةُ أفعالٍ صحيحة: يفتحُ المقطعَ نفسَه بعنوانِه في المعرض، أو
+ * يشاركُه، أو ينتقلُ إلى معرضِ GMD داخلَ التطبيق.
+ */
+@Composable
+private fun DoneCard(done: Progress.Done, isAudio: Boolean, onOpenGallery: () -> Unit) {
+    val context = LocalContext.current
+    val noAppLabel = stringResource(R.string.gallery_no_player)
+    val uri = remember(done.uri) { Uri.parse(done.uri) }
+    val mime = if (isAudio) "audio/*" else "video/*"
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.CheckCircle, null)
+                Text(stringResource(R.string.notif_done),
+                    style = MaterialTheme.typography.titleSmall)
+            }
+            Text(done.displayName, style = MaterialTheme.typography.bodySmall)
+            Text("${stringResource(R.string.save_to)}: ${done.relativePath}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = {
+                    val ok = runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW)
+                                .setDataAndType(uri, mime)
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        )
+                        true
+                    }.getOrDefault(false)
+                    if (!ok) Toast.makeText(context, noAppLabel, Toast.LENGTH_SHORT).show()
+                }) { Text(stringResource(R.string.play_file)) }
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(Intent.createChooser(
+                            Intent(Intent.ACTION_SEND)
+                                .setType(mime)
+                                .putExtra(Intent.EXTRA_STREAM, uri)
+                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                            null,
+                        ))
+                    }
+                }) { Text(stringResource(R.string.gallery_share)) }
+                TextButton(onClick = onOpenGallery) {
+                    Text(stringResource(R.string.menu_gallery))
+                }
+            }
         }
     }
 }
@@ -245,6 +444,10 @@ fun SettingsScreen(vm: GmdViewModel) {
     LaunchedEffect(Unit) { vm.loadYtDlpVersion() }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LanguageSection()
+
+        HorizontalDivider()
+
         Text(stringResource(R.string.update_title), style = MaterialTheme.typography.titleMedium)
 
         UpdateSection(vm, update, context)
@@ -279,6 +482,41 @@ fun SettingsScreen(vm: GmdViewModel) {
                     Uri.parse("https://github.com/SalehGNUTUX/GMD-PHONE")))
             }
         }) { Text(stringResource(R.string.about_repo)) }
+    }
+}
+
+/**
+ * اختيارُ لغةِ الواجهة — كما في نسخةِ الحاسوب.
+ *
+ * الاختيارُ يُحفَظُ في SharedPreferences ثمّ تُعادُ الشاشةُ بناءً: لا سبيلَ إلى
+ * تبديلِ لغةِ مواردَ محمَّلةٍ سلفاً في أندرويد، فإعادةُ البناءِ هي الطريقُ لتُقرَأَ
+ * الموارِدُ من جديدٍ في `attachBaseContext`. و«تلقائيّ» يُعيدُ الأمرَ إلى النظام.
+ */
+@Composable
+private fun LanguageSection() {
+    val context = LocalContext.current
+    var current by remember { mutableStateOf(LocalePrefs.get(context)) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.language_title), style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(
+                LocalePrefs.SYSTEM to R.string.language_system,
+                "ar" to R.string.language_ar,
+                "en" to R.string.language_en,
+            ).forEach { (tag, label) ->
+                FilterChip(
+                    selected = current == tag,
+                    onClick = {
+                        if (current == tag) return@FilterChip
+                        current = tag
+                        LocalePrefs.set(context, tag)
+                        (context as? Activity)?.recreate()
+                    },
+                    label = { Text(stringResource(label)) },
+                )
+            }
+        }
     }
 }
 

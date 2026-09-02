@@ -141,6 +141,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.kotlinx.coroutines.android)
+    // الصورة المصغَّرة للمقطع تُجلَب من الشبكة قبل التنزيل
+    implementation(libs.coil.compose)
 
     // الأدوات الثلاث التي يقوم عليها GMD، مُضمَّنةً أصليّاً
     implementation(libs.youtubedl.library)
