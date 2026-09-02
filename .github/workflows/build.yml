@@ -56,7 +56,12 @@ jobs:
 
       - name: التحقّق من الأرقام المغربيّة 0-9
         run: |
-          if grep -rlP '[\x{0660}-\x{0669}]' app/src/main/res app/src/main/java README.md 2>/dev/null; then
+          # -I يستبعد الملفّات الثنائيّة: أيقونات mipmap تحوي في بايتاتها ما يطابق
+          # نطاق الأرقام المشرقيّة، فكان الفحص يفشل على كلّ وسم بلا سبب حقيقيّ.
+          if grep -rlIP '[\x{0660}-\x{0669}]' \
+               --include='*.kt' --include='*.xml' --include='*.kts' \
+               --include='*.md' --include='*.pro' --include='*.properties' \
+               app/src/main/res app/src/main/java README.md CHANGELOG.md 2>/dev/null; then
             echo "وُجدت أرقام مشرقيّة ١-٩ — استعمل الأرقام المغربيّة 0-9"; exit 1
           fi
           echo "لا أرقام مشرقيّة"
