@@ -9,3 +9,4 @@ captures/
 *.aab
 keystore.properties
 *.jks
+.kotlin/

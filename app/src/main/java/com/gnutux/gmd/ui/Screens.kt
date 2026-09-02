@@ -50,7 +50,7 @@ private fun UrlField(vm: GmdViewModel) {
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DownloadScreen(vm: GmdViewModel, progress: Progress, isAudio: Boolean, enabled: Boolean) {
     val context = LocalContext.current
