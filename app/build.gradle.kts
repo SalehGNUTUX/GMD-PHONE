@@ -1,0 +1,112 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+}
+
+// رقم إصدار لكل معماريّة، ليأخذ كلُّ APK رقماً مميّزاً ومرتّباً.
+// المتجر — ومُثبِّت أندرويد نفسه — يرفض تثبيت حزمة برقم أقلّ من المثبَّتة،
+// فلو تشارك APK المعماريّات الرقم نفسه لتعذّر الانتقال بينها.
+val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
+
+android {
+    namespace = "com.gnutux.gmd"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "com.gnutux.gmd"
+        // 24 هو أدنى ما تدعمه مكتبة yt-dlp لأندرويد (تُضمّن بايثون)
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = "26.9.0"
+        resourceConfigurations += listOf("ar", "en")
+    }
+
+    // حزمة لكل معماريّة: الأدوات الثلاث (yt-dlp وبايثون و ffmpeg و aria2c) تُشحن
+    // ثنائيّاتٍ أصليّة، فالحزمة الموحّدة تقارب 200 م.ب بينما حزمة المعماريّة الواحدة
+    // تقارب خُمس ذلك. universalApk تبقى لمن لا يعرف معماريّة جهازه.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
+    }
+
+    // بيانات التبعيات كتلةٌ موقَّعةٌ من غوغل لا يمكن إعادة إنتاجها، ووجودها يمنع
+    // F-Droid من التحقّق من أنّ الحزمة بُنيت من هذا المصدر بالضبط.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+    buildFeatures { compose = true }
+
+    packaging {
+        resources.excludes += setOf(
+            "META-INF/{AL2.0,LGPL2.1}",
+            "META-INF/DEPENDENCIES",
+            "META-INF/INDEX.LIST",
+        )
+        // ثنائيّات yt-dlp/ffmpeg/aria2c تُستخرج وقت التشغيل ولا تُشغَّل من داخل الحزمة
+        jniLibs.useLegacyPackaging = true
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val abi = (output as? com.android.build.api.variant.impl.VariantOutputImpl)
+                ?.filters?.find { it.filterType.name == "ABI" }?.identifier
+            output.versionCode.set(100 * (android.defaultConfig.versionCode ?: 1) + (abiCodes[abi] ?: 0))
+            (output as? com.android.build.api.variant.impl.VariantOutputImpl)?.outputFileName?.set(
+                "GMD-PHONE-v${android.defaultConfig.versionName}-${abi ?: "universal"}-${variant.buildType}.apk"
+            )
+        }
+    }
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.kotlinx.coroutines.android)
+
+    // الأدوات الثلاث التي يقوم عليها GMD، مُضمَّنةً أصليّاً
+    implementation(libs.youtubedl.library)
+    implementation(libs.youtubedl.ffmpeg)
+    implementation(libs.youtubedl.aria2c)
+
+    debugImplementation(libs.androidx.ui.tooling)
+}

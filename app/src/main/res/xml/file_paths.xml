@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- حزم التحديث المُنزَّلة فقط — لا يُشارَك غيرها -->
+    <cache-path name="updates" path="updates/" />
+    <external-files-path name="downloads" path="Download/" />
+</paths>

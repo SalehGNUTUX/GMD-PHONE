@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- لوحة GMD نفسها: أرضيّة داكنة ولمسة حمراء -->
+    <color name="gmd_background">#0B0B0D</color>
+    <color name="gmd_accent">#DC2626</color>
+</resources>

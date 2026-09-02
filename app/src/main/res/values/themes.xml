@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- سمة النظام تُستعمل قبل أن يتولّى Compose الرسم؛ لونها لون خلفيّة التطبيق
+         حتى لا تومض شاشةٌ بيضاء عند الإقلاع -->
+    <style name="Theme.GMD" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/gmd_background</item>
+        <item name="android:navigationBarColor">@color/gmd_background</item>
+        <item name="android:windowBackground">@color/gmd_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
