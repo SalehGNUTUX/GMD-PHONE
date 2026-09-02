@@ -6,7 +6,7 @@
 
 منزّل وسائط حرّ لأندرويد، عربيّ الواجهة، بلا إعلانات ولا تتبُّع.
 
-![الإصدار](https://img.shields.io/badge/إصدار-26.9.0-red)
+![الإصدار](https://img.shields.io/badge/إصدار-26.9.0--alpha.1-orange)
 ![الترخيص](https://img.shields.io/badge/ترخيص-GPL%20v3-blue)
 ![المنصة](https://img.shields.io/badge/منصة-أندرويد%207.0%2B-green)
 ![المطور](https://img.shields.io/badge/المطور-GNUTUX-orange)
@@ -16,6 +16,12 @@
 </div>
 
 ---
+
+> [!WARNING]
+> **26.9.0-alpha.1 إصدارٌ تجريبيٌّ أوّليّ للاختبار لا للاستعمال اليوميّ.**
+> تهيئة الأدوات تفشل على بعض الأجهزة وما زال العطب قيد التشخيص. إن واجهتَه
+> فانسخ نصّ الخطأ من البطاقة الحمراء بزرّ «انسخ الخطأ» وأرسله في
+> [المسائل](https://github.com/SalehGNUTUX/GMD-PHONE/issues).
 
 ## ما هو
 

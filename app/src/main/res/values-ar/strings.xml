@@ -66,6 +66,9 @@
     <string name="notif_stop">إيقاف</string>
     <string name="init_tools">تهيئة أدوات التنزيل لأوّل مرّة…</string>
     <string name="init_failed">تعذّرت تهيئة الأدوات</string>
+    <string name="retry">أعد المحاولة</string>
+    <string name="copy_error">انسخ الخطأ</string>
+    <string name="error_copied">نُسخ الخطأ</string>
     <string name="update_restart">افتح المُثبِّت</string>
     <string name="update_no_asset">لا توجد حزمة تطابق معماريّة هذا الجهاز في الإصدار الجديد.</string>
     <string name="update_allow_unknown">يطلب أندرويد إذن «تثبيت تطبيقات غير معروفة» مرّةً واحدة</string>

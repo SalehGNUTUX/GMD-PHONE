@@ -10,3 +10,12 @@
 # بدونها يفشل R8 ويسقط بناء الإصدار كلّه.
 -dontwarn org.w3c.dom.bootstrap.DOMImplementationRegistry
 -dontwarn org.w3c.dom.**
+
+# قواعدُ مكتبةِ youtubedl-android الموثَّقة، محفوظةٌ هنا استعداداً لإعادة تفعيل
+# التصغير: المكتبةُ تستخرج أدواتِها وتقرأ خرجَها بالانعكاس، فتُشوَّه بلا هذه.
+-keep class com.yausername.youtubedl_android.** { *; }
+-keep class com.yausername.ffmpeg.** { *; }
+-keep class com.yausername.aria2c.** { *; }
+-keep class org.apache.commons.** { *; }
+-dontwarn org.apache.commons.**
+-keepclassmembers class * { @com.fasterxml.jackson.annotation.* *; }

@@ -66,6 +66,9 @@
     <string name="notif_stop">Stop</string>
     <string name="init_tools">Setting up the download tools for the first time…</string>
     <string name="init_failed">Could not set up the tools</string>
+    <string name="retry">Retry</string>
+    <string name="copy_error">Copy the error</string>
+    <string name="error_copied">Error copied</string>
     <string name="update_restart">Open the installer</string>
     <string name="update_no_asset">The new release has no package matching this device architecture.</string>
     <string name="update_allow_unknown">Android asks once for permission to install unknown apps</string>

@@ -44,7 +44,24 @@ class GmdApp : Application() {
             _tools.value = ToolsState.Ready
         } catch (e: Throwable) {
             Log.e(TAG, "tool init failed", e)
-            _tools.value = ToolsState.Failed(e.message ?: e::class.java.simpleName)
+            _tools.value = ToolsState.Failed(describe(e))
+        }
+    }
+
+    /**
+     * وصفٌ صالحٌ للإبلاغ: اسمُ الصنفِ الكاملُ ورسالتُه، ثمّ سلسلةُ الأسباب.
+     * الرسالةُ وحدَها كثيراً ما تكون فارغةً فلا تدلّ على شيء، واسمُ الصنفِ
+     * المختصرُ وحدَه لا يكفي — وإن كان البناء مصغَّراً خرج مشوَّشاً بلا معنى.
+     */
+    private fun describe(e: Throwable): String = buildString {
+        var t: Throwable? = e
+        var depth = 0
+        while (t != null && depth < 4) {
+            if (depth > 0) append("\n← ")
+            append(t!!::class.java.name)
+            t!!.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
+            t = t!!.cause
+            depth++
         }
     }
 

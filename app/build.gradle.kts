@@ -35,7 +35,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "26.9.0"
+        versionName = "26.9.0-alpha.1"
         resourceConfigurations += listOf("ar", "en")
     }
 
@@ -70,8 +70,14 @@ android {
             // بلا مفتاحٍ تخرج الحزمة غير موقَّعة فيرفض أندرويد تثبيتها؛ نتركها تُبنى
             // لأنّ البناء المحلّيّ للتجربة لا يحتاج مفتاحاً، والنشر يفشل في CI عمداً.
             signingConfig = if (hasSigningKey) signingConfigs.getByName("release") else null
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // التصغير معطَّل في هذه السلسلة التجريبيّة. سببان:
+            // أوّلهما أنّ تهيئة الأدوات تفشل في حزمة release وحدَها، والتصغيرُ
+            // أوّلُ المتّهمين — تعطيلُه يفصل الفرضيّة عن غيرها بتجربةٍ واحدة.
+            // وثانيهما أنّ التشويشَ يُخرج أسماءَ الأصناف بلا معنى (‏P2.f)،
+            // فيضيعُ الاستثناءُ الحقيقيُّ وهو كلُّ ما نملكه من جهاز المستخدم.
+            // يُعاد تفعيلُه بعد تشخيصِ العطب واختبارِ الحزمة المصغَّرة على جهاز.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {

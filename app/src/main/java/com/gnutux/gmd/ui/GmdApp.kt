@@ -1,7 +1,11 @@
 package com.gnutux.gmd.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -120,6 +124,8 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
 
 @Composable
 private fun ToolsBanner(tools: ToolsState) {
+    val context = LocalContext.current
+    val copiedLabel = stringResource(R.string.error_copied)
     when (tools) {
         is ToolsState.Preparing -> Card(Modifier.fillMaxWidth()) {
             Row(
@@ -134,17 +140,36 @@ private fun ToolsBanner(tools: ToolsState) {
             Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
         ) {
-            Row(
-                Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Icon(Icons.Filled.WarningAmber, null)
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.init_failed), style = MaterialTheme.typography.bodyMedium)
-                    Text(tools.message, style = MaterialTheme.typography.bodySmall)
+            Column(Modifier.padding(14.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(Icons.Filled.WarningAmber, null)
+                    Text(
+                        stringResource(R.string.init_failed),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                TextButton(onClick = { AppClass.instance.retryTools() }) {
-                    Text(stringResource(R.string.update_check_now))
+                // نصُّ الاستثناء كاملاً: بلا جهازٍ متّصلٍ بـlogcat هذه هي الطريقة
+                // الوحيدة ليصل الخطأُ من جهاز المستخدم إلى المطوِّر.
+                Text(
+                    tools.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { AppClass.instance.retryTools() }) {
+                        Text(stringResource(R.string.retry))
+                    }
+                    TextButton(onClick = {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("GMD", tools.message))
+                        Toast.makeText(context, copiedLabel, Toast.LENGTH_SHORT).show()
+                    }) {
+                        Text(stringResource(R.string.copy_error))
+                    }
                 }
             }
         }
