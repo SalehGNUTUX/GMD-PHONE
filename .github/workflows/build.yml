@@ -86,6 +86,10 @@ jobs:
         run: ./gradlew assembleRelease --no-daemon --console=plain
 
       - name: التحقّق من التوقيع
+        env:
+          # بصمة شهادة التوقيع المنشورة — ليست سرّاً، والغرض منها أن يسقط البناء
+          # إن بُني بمفتاح غير مفتاح المشروع.
+          EXPECTED_SHA256: f8400b29da19a77e100deee99ae0a07e1d89e2ea6098f1ac32cf258655e1be46
         run: |
           # الصدفة تعمل بـ`-e`، وكانت النتيجة تُقاس بخرج `grep` في نهاية أنبوب.
           # فإن سقط apksigner لم يُطبَع خرجُه أصلاً — ذهب إلى الأنبوب لا إلى السجلّ —
@@ -104,10 +108,18 @@ jobs:
             found=1
             echo "── $(basename "$apk")"
             if out="$("$BT/apksigner" verify --print-certs "$apk" 2>&1)"; then
-              echo "$out" | grep -E 'Signer #1 certificate (DN|SHA-256)' || echo "$out"
+              # صيغة السطر تغيّرت في أدوات البناء 37 من `Signer #1 certificate`
+              # إلى `V2 Signer: certificate`، فيُطابَق الاثنان.
+              echo "$out" | grep -iE 'certificate (DN|SHA-256)' || echo "$out"
             else
               echo "$out"
               echo "فشل التحقّق من توقيع $(basename "$apk")"
+              exit 1
+            fi
+            # بصمة مفتاح التوقيع مثبَّتة: مفتاح مخالف يُنتج حزمةً لا تُثبَّت فوق
+            # المثبَّتة عند المستخدم، ويجب أن يسقط البناء لا أن يُنشَر الخطأ.
+            if ! grep -qi "$EXPECTED_SHA256" <<< "$out"; then
+              echo "بصمة التوقيع لا تطابق المتوقَّعة — راجع أسرار المستودع"
               exit 1
             fi
           done
