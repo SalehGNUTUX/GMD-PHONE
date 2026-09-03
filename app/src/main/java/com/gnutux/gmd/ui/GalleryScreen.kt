@@ -7,15 +7,19 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,6 +56,8 @@ fun GalleryScreen() {
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmDelete by remember { mutableStateOf(false) }
     var hasRead by remember { mutableStateOf(MediaLibrary.hasReadPermission(context)) }
+    /** المجلَّد المفتوح: قائمةُ تشغيلٍ يُتصفَّح داخلُها، أو `null` للجذر. */
+    var openFolder by remember { mutableStateOf<String?>(null) }
 
     val deletedLabel = stringResource(R.string.gallery_deleted)
     val noAppLabel = stringResource(R.string.gallery_no_player)
@@ -108,20 +114,52 @@ fun GalleryScreen() {
 
     LaunchedEffect(Unit) { reload() }
 
-    val list = items
+    val all = items
+    // في الجذر تُعرَض الملفّاتُ المفردة، وداخلَ مجلَّدٍ تُعرَض عناصرُه وحدَها
+    val list = all?.filter { it.folder == openFolder }
+    val folders = remember(all) {
+        all.orEmpty().filter { it.folder != null }
+            .groupBy { it.folder!! }
+            .toList()
+            .sortedByDescending { (_, v) -> v.maxOf { it.addedSeconds } }
+    }
     val chosen = list.orEmpty().filter { it.uri.toString() in selected }
+
+    // زرُّ الرجوع يُغلق المجلَّد قبل أن يعود إلى القائمة: هذا المستوى أعمقُ من
+    // الشاشة، فيجب أن يُستهلَك هنا لا هناك.
+    BackHandler(enabled = openFolder != null) { openFolder = null; selected = emptySet() }
+
+    if (openFolder != null) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            IconButton(onClick = { openFolder = null; selected = emptySet() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+            }
+            Icon(Icons.Filled.PlaylistPlay, null, tint = MaterialTheme.colorScheme.primary)
+            Text(openFolder!!, style = MaterialTheme.typography.titleSmall,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
         // ── شريطُ الإجراءات ──────────────────────────────────────────────────
-        if (list != null && list.isNotEmpty()) {
+        if (list != null && (list.isNotEmpty() || folders.isNotEmpty())) {
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    if (selected.isEmpty()) stringResource(R.string.gallery_count, list.size)
+                    if (selected.isEmpty()) {
+                        if (openFolder == null && folders.isNotEmpty())
+                            stringResource(R.string.gallery_count_with_folders,
+                                list.size, folders.size)
+                        else stringResource(R.string.gallery_count, list.size)
+                    }
                     else stringResource(R.string.gallery_selected, selected.size),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
@@ -175,7 +213,14 @@ fun GalleryScreen() {
                 }
             }
 
-            else -> list.forEach { entry ->
+            else -> {
+                if (openFolder == null && folders.isNotEmpty()) {
+                    folders.forEach { (name, entries) ->
+                        FolderCard(name, entries) { openFolder = name; selected = emptySet() }
+                    }
+                    if (list.isNotEmpty()) HorizontalDivider()
+                }
+                list.forEach { entry ->
                 val key = entry.uri.toString()
                 val isSelected = key in selected
                 EntryRow(
@@ -194,12 +239,13 @@ fun GalleryScreen() {
                     },
                     onLongClick = { selected = if (isSelected) selected - key else selected + key },
                 )
+                }
             }
         }
 
         // القائمةُ قد تكونُ عامرةً وينقصُها ما فقدَ التطبيقُ مِلكيّتَه، ولا سبيلَ إلى
         // معرفةِ ذلك بلا الإذنِ نفسِه — فيبقى العرضُ متاحاً بلا إلحاح.
-        if (!hasRead && !list.isNullOrEmpty()) {
+        if (!hasRead && !all.isNullOrEmpty()) {
             TextButton(onClick = { requestAccess() }) {
                 Text(
                     stringResource(R.string.gallery_missing_older),
@@ -238,6 +284,56 @@ fun GalleryScreen() {
                 }
             },
         )
+    }
+}
+
+/** مجلَّدُ قائمةِ تشغيل: صورةُ أوّلِ عنصرٍ وعددُه ومجموعُ حجمِه. */
+@Composable
+private fun FolderCard(name: String, entries: List<MediaEntry>, onOpen: () -> Unit) {
+    val context = LocalContext.current
+    val first = entries.maxByOrNull { it.addedSeconds } ?: return
+    val thumb by produceState<Bitmap?>(null, first.uri) {
+        value = MediaLibrary.thumbnail(context, first)
+    }
+    Card(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
+        Row(
+            Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier.size(width = 92.dp, height = 62.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                val bmp = thumb
+                if (bmp != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(), contentDescription = null,
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                    )
+                }
+                Icon(
+                    Icons.Filled.PlaylistPlay, null,
+                    tint = Color.White,
+                    modifier = Modifier.align(Alignment.BottomStart)
+                        .background(Color.Black.copy(alpha = 0.55f)).padding(2.dp),
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(name, style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    stringResource(R.string.gallery_folder_items, entries.size) + "  ·  " +
+                        MediaLibrary.formatSize(entries.sumOf { it.sizeBytes }),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

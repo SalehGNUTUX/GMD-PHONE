@@ -136,4 +136,20 @@
     <string name="clip_invalid">The end must come after the start.</string>
     <string name="ytdlp_up_to_date">yt-dlp is already the latest available</string>
     <string name="ytdlp_updated_to">yt-dlp updated to %1$s</string>
+    <string name="notif_channel_update">App update</string>
+    <string name="update_downloading">Downloading the update</string>
+    <string name="update_ready_to_install">Update downloaded — tap to install</string>
+    <string name="exit_title">Leave GMD?</string>
+    <string name="exit_message">A running download keeps going in the background and is not affected.</string>
+    <string name="exit_confirm">Leave</string>
+    <string name="exit_stay">Stay</string>
+    <string name="playlist_detected">Playlist</string>
+    <string name="playlist_selected_of">%1$d of %2$d selected</string>
+    <string name="playlist_download_n">Download %1$d</string>
+    <string name="playlist_folder_note">Saved into its own folder: GMD/%1$s</string>
+    <string name="gallery_count_with_folders">%1$d items · %2$d playlists</string>
+    <string name="gallery_folder_items">%1$d items</string>
+    <string name="history_playlist_saved">saved %1$d of %2$d</string>
+    <string name="history_playlist_requested">%1$d items requested</string>
+    <string name="done_files">%1$d files</string>
 </resources>

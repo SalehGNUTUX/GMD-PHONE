@@ -30,8 +30,16 @@ import kotlinx.coroutines.launch
 sealed interface Progress {
     data object Idle : Progress
     data class Running(val percent: Float, val etaSeconds: Long, val line: String) : Progress
-    /** [uri] عنوانُ المدخلِ في معرضِ الوسائط — بدونِه لا فتحَ ولا مشاركةَ للناتج. */
-    data class Done(val displayName: String, val relativePath: String, val uri: String) : Progress
+    /**
+     * [uri] عنوانُ المدخلِ في معرضِ الوسائط — بدونِه لا فتحَ ولا مشاركةَ للناتج.
+     * و[count] عددُ ما حُفِظ: أكثرُ من واحدٍ حين تكونُ المادّةُ قائمةَ تشغيل.
+     */
+    data class Done(
+        val displayName: String,
+        val relativePath: String,
+        val uri: String,
+        val count: Int = 1,
+    ) : Progress
     data class Failed(val message: String) : Progress
 }
 
@@ -58,6 +66,8 @@ class DownloadService : Service() {
         val duration: String?,
         val thumbnail: String?,
         val section: Section?,
+        val playlist: PlaylistJob?,
+        val playlistTitle: String?,
     )
 
     private var attempt: Attempt? = null
@@ -102,6 +112,11 @@ class DownloadService : Service() {
                 intent.getIntExtra(EXTRA_START, -1),
                 intent.getIntExtra(EXTRA_END, -1),
             ).takeIf { it.valid },
+            playlist = intent.getStringExtra(EXTRA_PL_FOLDER)?.let { folder ->
+                intent.getIntArrayExtra(EXTRA_PL_ITEMS)?.takeIf { it.isNotEmpty() }
+                    ?.let { PlaylistJob(folder, it.toList()) }
+            },
+            playlistTitle = intent.getStringExtra(EXTRA_PL_TITLE),
         )
 
         startForegroundCompat(buildNotification(0, getString(R.string.notif_downloading), ongoing = true))
@@ -112,12 +127,15 @@ class DownloadService : Service() {
         recorded.set(false)
 
         val section = attempt?.section
+        val playlist = attempt?.playlist
         val job: Job = if (isAudio) {
             Job.Audio(url,
-                runCatching { AudioFormat.valueOf(choice) }.getOrDefault(AudioFormat.MP3), section)
+                runCatching { AudioFormat.valueOf(choice) }.getOrDefault(AudioFormat.MP3),
+                section, playlist)
         } else {
             Job.Video(url,
-                runCatching { Quality.valueOf(choice) }.getOrDefault(Quality.P1080), section)
+                runCatching { Quality.valueOf(choice) }.getOrDefault(Quality.P1080),
+                section, playlist)
         }
 
         scope.launch {
@@ -128,18 +146,31 @@ class DownloadService : Service() {
             }
 
             result.fold(
-                onSuccess = { file ->
-                    MediaStoreSaver.save(applicationContext, file, isAudio).fold(
-                        onSuccess = { saved ->
-                            record(Outcome.SUCCESS, null, saved.uri.toString(),
-                                saved.displayName, saved.relativePath)
-                            _progress.value =
-                                Progress.Done(saved.displayName, saved.relativePath, saved.uri.toString())
-                            notify(buildNotification(100, getString(R.string.notif_done), ongoing = false,
-                                text = saved.displayName))
-                        },
-                        onFailure = { fail(it) },
-                    )
+                onSuccess = { files ->
+                    // كلُّ ملفٍّ يُنقَل على حدة، وقائمةُ التشغيل تُودَع مجلَّداً باسمِها.
+                    // وفشلُ ملفٍّ لا يُهدِر ما نجح قبلَه: ما حُفِظ يبقى محفوظاً.
+                    val folder = attempt?.playlist?.folder
+                    var saved: MediaStoreSaver.Saved? = null
+                    var count = 0
+                    var lastError: Throwable? = null
+                    files.forEach { f ->
+                        MediaStoreSaver.save(applicationContext, f, isAudio, folder).fold(
+                            onSuccess = { saved = it; count++ },
+                            onFailure = { lastError = it },
+                        )
+                    }
+                    val s = saved
+                    if (s == null) {
+                        fail(lastError ?: IllegalStateException("nothing could be saved"))
+                    } else {
+                        val name = if (count > 1) (attempt?.playlistTitle ?: s.relativePath)
+                                   else s.displayName
+                        record(Outcome.SUCCESS, null, s.uri.toString(), name, s.relativePath, count)
+                        _progress.value =
+                            Progress.Done(name, s.relativePath, s.uri.toString(), count)
+                        notify(buildNotification(100, getString(R.string.notif_done),
+                            ongoing = false, text = name))
+                    }
                 },
                 onFailure = { fail(it) },
             )
@@ -166,6 +197,7 @@ class DownloadService : Service() {
         uri: String?,
         name: String?,
         path: String?,
+        savedCount: Int = 1,
     ) {
         val a = attempt ?: return
         if (!recorded.compareAndSet(false, true)) return
@@ -181,6 +213,9 @@ class DownloadService : Service() {
                     choice = a.choice, outcome = outcome, error = error,
                     savedUri = uri, savedName = name, savedPath = path, timestamp = now,
                     sectionStart = a.section?.startSec, sectionEnd = a.section?.endSec,
+                    playlistTitle = a.playlistTitle,
+                    playlistRequested = a.playlist?.items?.size,
+                    playlistSaved = if (outcome == Outcome.SUCCESS) savedCount else null,
                 ),
             )
         }
@@ -280,6 +315,9 @@ class DownloadService : Service() {
         private const val EXTRA_THUMB = "thumb"
         private const val EXTRA_START = "sectionStart"
         private const val EXTRA_END = "sectionEnd"
+        private const val EXTRA_PL_FOLDER = "playlistFolder"
+        private const val EXTRA_PL_ITEMS = "playlistItems"
+        private const val EXTRA_PL_TITLE = "playlistTitle"
 
         private val _progress = MutableStateFlow<Progress>(Progress.Idle)
         val progress: StateFlow<Progress> = _progress
@@ -302,6 +340,9 @@ class DownloadService : Service() {
             thumbnail: String? = null,
             sectionStart: Int = -1,
             sectionEnd: Int = -1,
+            playlistFolder: String? = null,
+            playlistItems: IntArray? = null,
+            playlistTitle: String? = null,
         ) {
             val intent = Intent(context, DownloadService::class.java)
                 .setAction(ACTION_START)
@@ -314,6 +355,9 @@ class DownloadService : Service() {
                 .putExtra(EXTRA_THUMB, thumbnail)
                 .putExtra(EXTRA_START, sectionStart)
                 .putExtra(EXTRA_END, sectionEnd)
+                .putExtra(EXTRA_PL_FOLDER, playlistFolder)
+                .putExtra(EXTRA_PL_ITEMS, playlistItems)
+                .putExtra(EXTRA_PL_TITLE, playlistTitle)
             androidx.core.content.ContextCompat.startForegroundService(context, intent)
         }
 

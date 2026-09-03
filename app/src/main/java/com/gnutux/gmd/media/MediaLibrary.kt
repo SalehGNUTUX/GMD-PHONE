@@ -25,6 +25,8 @@ data class MediaEntry(
     val durationMs: Long,
     val addedSeconds: Long,
     val isAudio: Boolean,
+    /** مجلَّدُ قائمةِ التشغيلِ داخلَ GMD، أو `null` لملفٍّ مفرد. */
+    val folder: String? = null,
 )
 
 /** نتيجةُ محاولةِ الحذف: قد يطلبُ النظامُ إذنَ المستخدمِ بنفسِه. */
@@ -90,6 +92,8 @@ object MediaLibrary {
             MediaStore.MediaColumns.SIZE,
             MediaStore.MediaColumns.DURATION,
             MediaStore.MediaColumns.DATE_ADDED,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.MediaColumns.RELATIVE_PATH
+            else @Suppress("DEPRECATION") MediaStore.MediaColumns.DATA,
         )
 
         // RELATIVE_PATH لم يوجد قبلَ أندرويد 10، فيُرشَّحُ هناك بالمسارِ الخام.
@@ -113,8 +117,19 @@ object MediaLibrary {
             val iSize = c.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
             val iDur = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DURATION)
             val iDate = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_ADDED)
+            val iPath = c.getColumnIndex(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                    MediaStore.MediaColumns.RELATIVE_PATH
+                else @Suppress("DEPRECATION") MediaStore.MediaColumns.DATA
+            )
+            val root = if (isAudio) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES
             while (c.moveToNext()) {
                 val id = c.getLong(iId)
+                // ما بعد `<root>/GMD/` هو اسم مجلَّد القائمة، وما لا شيء بعده ملفٌّ مفرد
+                val folder = if (iPath >= 0 && !c.isNull(iPath)) {
+                    c.getString(iPath).substringAfter("$root/$FOLDER/", "")
+                        .trim('/').substringBefore('/').takeIf { it.isNotBlank() }
+                } else null
                 out += MediaEntry(
                     uri = ContentUris.withAppendedId(collection, id),
                     id = id,
@@ -124,6 +139,7 @@ object MediaLibrary {
                     durationMs = if (c.isNull(iDur)) 0L else c.getLong(iDur),
                     addedSeconds = c.getLong(iDate),
                     isAudio = isAudio,
+                    folder = folder,
                 )
             }
         }

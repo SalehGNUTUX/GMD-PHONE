@@ -7,6 +7,7 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.youtubedl_android.YoutubeDLResponse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 
 /**
@@ -26,21 +27,53 @@ data class Section(val startSec: Int, val endSec: Int) {
         "%02d:%02d:%02d".format(t / 3600, (t % 3600) / 60, t % 60)
 }
 
+/** عنصرٌ واحدٌ في قائمةِ تشغيل، كما يراه المستخدمُ قبلَ أن يختار. */
+data class PlaylistEntry(val index: Int, val title: String, val duration: String)
+
+/** قائمةُ تشغيلٍ مكتشَفةٌ خلفَ الرابط. */
+data class PlaylistInfo(
+    val title: String,
+    val entries: List<PlaylistEntry>,
+) {
+    val count: Int get() = entries.size
+
+    /**
+     * اسمُ مجلَّدٍ صالحٌ لنظامِ الملفّاتِ ولـMediaStore.
+     *
+     * `RELATIVE_PATH` يرفضُ المحارفَ التي يرفضُها نظامُ الملفّات، وعنوانُ القائمةِ
+     * يأتي من الشبكةِ فقد يحملُ أيّاً منها — وقد يكونُ فارغاً أصلاً.
+     */
+    fun folderName(): String {
+        val cleaned = title.replace(Regex("""[/\\:*?"<>|\r\n]"""), " ")
+            .replace(Regex("""\s+"""), " ").trim().take(60)
+        return cleaned.ifBlank { "playlist" }
+    }
+}
+
+/** ما يُطلَبُ تنزيلُه من قائمةِ تشغيل: مؤشّراتُ العناصرِ ومجلَّدُها. */
+data class PlaylistJob(val folder: String, val items: List<Int>) {
+    /** صيغةُ `--playlist-items`: أرقامٌ مفصولةٌ بفواصل. */
+    fun toArg(): String = items.joinToString(",")
+}
+
 /** ما يريده المستخدم: فيديو بجودة، أو صوت بصيغة، وقد يريد جزءاً منه. */
 sealed interface Job {
     val url: String
     val section: Section?
+    val playlist: PlaylistJob?
 
     data class Video(
         override val url: String,
         val quality: Quality,
         override val section: Section? = null,
+        override val playlist: PlaylistJob? = null,
     ) : Job
 
     data class Audio(
         override val url: String,
         val format: AudioFormat,
         override val section: Section? = null,
+        override val playlist: PlaylistJob? = null,
     ) : Job
 }
 
@@ -111,6 +144,45 @@ object Downloader {
     }
 
     /**
+     * يكشفُ ما إذا كان الرابطُ قائمةَ تشغيل، ويُعيدُ عناصرَها بلا تنزيلِ شيء.
+     *
+     * `--flat-playlist` يمنعُ yt-dlp من زيارةِ كلِّ عنصرٍ على حدة، فقائمةٌ فيها مئةُ
+     * مقطعٍ تُكشَفُ بطلبٍ واحدٍ لا بمئة. ويُعادُ `null` إن كان الرابطُ مقطعاً مفرداً.
+     */
+    suspend fun fetchPlaylist(url: String): PlaylistInfo? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = YoutubeDLRequest(sanitize(url)).apply {
+                addOption("--flat-playlist")
+                addOption("--dump-single-json")
+                addOption("--no-warnings")
+            }
+            val out = YoutubeDL.getInstance().execute(request).out
+            val root = JSONObject(out)
+            val entriesJson = root.optJSONArray("entries")
+            val isPlaylist = root.optString("_type") == "playlist" ||
+                (entriesJson != null && entriesJson.length() > 1)
+            if (!isPlaylist || entriesJson == null) return@runCatching null
+
+            val entries = buildList {
+                for (i in 0 until entriesJson.length()) {
+                    val e = entriesJson.optJSONObject(i) ?: continue
+                    add(
+                        PlaylistEntry(
+                            index = i + 1,
+                            title = e.optString("title").ifBlank {
+                                e.optString("id").ifBlank { "#${i + 1}" }
+                            },
+                            duration = e.optString("duration_string"),
+                        )
+                    )
+                }
+            }
+            if (entries.size < 2) null
+            else PlaylistInfo(root.optString("title"), entries)
+        }.getOrNull()
+    }
+
+    /**
      * ينفّذ المهمّة ويستدعي [onProgress] بنسبةٍ مئويّةٍ ومدّةٍ متبقّية.
      * [processId] يسمح بإلغائها لاحقاً عبر [cancel].
      */
@@ -119,17 +191,22 @@ object Downloader {
         job: Job,
         processId: String,
         onProgress: (percent: Float, etaSeconds: Long, line: String) -> Unit,
-    ): Result<File> = withContext(Dispatchers.IO) {
+    ): Result<List<File>> = withContext(Dispatchers.IO) {
         runCatching {
             val out = stagingDir(context)
             out.listFiles()?.forEach { it.delete() }   // بقايا محاولةٍ سابقة
 
-            val section = job.section?.takeIf { it.valid }
+            // الاقتصاصُ لا معنى له في قائمةِ تشغيل: حدٌّ زمنيٌّ واحدٌ لا يصلح
+            // لمقاطعَ مختلفةِ الطول
+            val section = job.section?.takeIf { it.valid && job.playlist == null }
 
             // المسلك الأوّل: نطلب من الخادم الجزءَ وحدَه فلا يُنزَّل ما لا يُراد،
             // وهو على الهاتف توفيرٌ حقيقيّ في البيانات والوقت معاً.
             val first = attempt(context, job, section, processId, out, onProgress)
-            if (first != null) return@runCatching first
+            if (first.isNotEmpty()) {
+                return@runCatching if (section != null) listOf(trim(context, first.first(), section))
+                else first
+            }
 
             // ويرفض بعضُ المواقع — يوتيوب منها — أن يجلب ffmpeg نطاقاً من روابطها
             // فيردّ 403. فإن كان القصُّ مطلوباً وسقط، نزّلنا المادّة كاملةً ثمّ
@@ -138,15 +215,15 @@ object Downloader {
 
             out.listFiles()?.forEach { it.delete() }
             val whole = attempt(context, job, null, processId, out, onProgress)
-                ?: error(lastError ?: "no output file was produced")
-            trim(context, whole, section)
+                .firstOrNull() ?: error(lastError ?: "no output file was produced")
+            listOf(trim(context, whole, section))
         }
     }
 
     /** آخرُ خطأٍ من محاولةٍ داخليّة، ليُبلَّغ عنه بدل رسالةٍ عامّة. */
     @Volatile private var lastError: String? = null
 
-    /** محاولةُ تنزيلٍ واحدة؛ تُعيد الملفَّ الناتج أو `null` إن فشلت. */
+    /** محاولةُ تنزيلٍ واحدة؛ تُعيد الملفّاتِ الناتجةَ أو قائمةً فارغةً إن فشلت. */
     private fun attempt(
         context: Context,
         job: Job,
@@ -154,11 +231,21 @@ object Downloader {
         processId: String,
         out: File,
         onProgress: (Float, Long, String) -> Unit,
-    ): File? {
+    ): List<File> {
         val request = YoutubeDLRequest(sanitize(job.url)).apply {
-            addOption("-o", "${out.absolutePath}/%(title).80s.%(ext)s")
             addOption("--no-mtime")
-            addOption("--no-playlist")
+            if (job.playlist != null) {
+                // ترتيبُ العناصرِ يُكتَبُ في الاسم، فيبقى ترتيبُ القائمةِ ظاهراً في
+                // المجلَّد مهما رتّبَه عارضُ الوسائطِ أبجديّاً
+                addOption("-o", "${out.absolutePath}/%(playlist_index)02d - %(title).60s.%(ext)s")
+                addOption("--yes-playlist")
+                addOption("--playlist-items", job.playlist!!.toArg())
+                // فشلُ عنصرٍ لا يُسقِطُ القائمةَ كلَّها
+                addOption("--ignore-errors")
+            } else {
+                addOption("-o", "${out.absolutePath}/%(title).80s.%(ext)s")
+                addOption("--no-playlist")
+            }
             section?.let { addOption("--download-sections", it.toArg()) }
             when (job) {
                 is Job.Video -> {
@@ -179,17 +266,24 @@ object Downloader {
                 YoutubeDL.getInstance().execute(request, processId) { p, eta, line ->
                     onProgress(p, eta, line)
                 }
+            val produced = out.listFiles()
+                ?.filter { it.isFile && it.length() > 0 && !it.name.endsWith(".part") }
+                ?.sortedBy { it.name }
+                .orEmpty()
+
             // النجاح يُقاس برمز الخروج ووجود ملفٍّ فعليّ — لا بالبحث عن كلمة "error"
             // في الخرج، فـ yt-dlp يطبعها على محاولةٍ فاشلةٍ ثمّ ينجح بالتالية.
-            if (response.exitCode != 0) {
+            // وفي قائمةِ التشغيل يُمرَّر `--ignore-errors` فيخرج برمزٍ غيرِ صفرٍ وقد
+            // نجح بعضُها، فما نزل يُحفَظ ولا يُهدَر لأجل ما سقط.
+            if (response.exitCode != 0 && produced.isEmpty()) {
                 lastError = "yt-dlp exited with ${response.exitCode}"
-                return null
+                return emptyList()
             }
-            out.listFiles()?.firstOrNull { it.isFile && it.length() > 0 }
-                ?: run { lastError = "no output file was produced"; null }
+            if (produced.isEmpty()) lastError = "no output file was produced"
+            produced
         } catch (e: Throwable) {
             lastError = e.message ?: e::class.java.name
-            null
+            emptyList()
         }
     }
 

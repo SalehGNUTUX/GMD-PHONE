@@ -22,13 +22,23 @@ object MediaStoreSaver {
 
     data class Saved(val uri: Uri, val displayName: String, val relativePath: String)
 
-    suspend fun save(context: Context, source: File, isAudio: Boolean): Result<Saved> =
+    /**
+     * [subFolder] مجلَّدٌ فرعيٌّ داخلَ GMD لقائمةِ تشغيل، فتُحفَظ كلُّ قائمةٍ في
+     * مجلَّدٍ باسمِها بدلَ أن تختلطَ مقاطعُها بغيرِها في مجلَّدٍ واحد.
+     */
+    suspend fun save(
+        context: Context,
+        source: File,
+        isAudio: Boolean,
+        subFolder: String? = null,
+    ): Result<Saved> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val name = source.name
                 val mime = mimeOf(name, isAudio)
                 val folder = if (isAudio) Environment.DIRECTORY_MUSIC else Environment.DIRECTORY_MOVIES
-                val relative = "$folder/GMD"
+                val relative = if (subFolder.isNullOrBlank()) "$folder/GMD"
+                               else "$folder/GMD/$subFolder"
 
                 val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     if (isAudio) MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)

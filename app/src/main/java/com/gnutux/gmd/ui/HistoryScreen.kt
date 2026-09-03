@@ -141,7 +141,8 @@ fun HistoryScreen(onRetry: (HistoryEntry) -> Unit) {
                         when {
                             selected.isNotEmpty() ->
                                 selected = if (isSelected) selected - entry.id else selected + entry.id
-                            entry.outcome == Outcome.SUCCESS && entry.savedUri != null -> {
+                            entry.outcome == Outcome.SUCCESS && entry.savedUri != null &&
+                                !entry.isPlaylist -> {
                                 val ok = runCatching {
                                     context.startActivity(
                                         Intent(Intent.ACTION_VIEW)
@@ -239,16 +240,38 @@ private fun EntryCard(
                 }
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        entry.title ?: entry.url,
+                        // قائمةُ التشغيل تُعرَض بعنوانها لا بعنوان أوّل مقطع فيها
+                        if (entry.isPlaylist)
+                            entry.playlistTitle?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.playlist_detected)
+                        else entry.title ?: entry.url,
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         buildString {
-                            append(stringResource(
-                                if (entry.isAudio) R.string.history_kind_audio
-                                else R.string.history_kind_video
-                            ))
+                            if (entry.isPlaylist) {
+                                append(stringResource(R.string.playlist_detected))
+                                append("  ·  ")
+                                // ما نزل من الجميع: `--ignore-errors` يُبقي ما نجح
+                                append(
+                                    if (entry.outcome == Outcome.SUCCESS)
+                                        stringResource(
+                                            R.string.history_playlist_saved,
+                                            entry.playlistSaved ?: 0,
+                                            entry.playlistRequested ?: 0,
+                                        )
+                                    else stringResource(
+                                        R.string.history_playlist_requested,
+                                        entry.playlistRequested ?: 0,
+                                    )
+                                )
+                            } else {
+                                append(stringResource(
+                                    if (entry.isAudio) R.string.history_kind_audio
+                                    else R.string.history_kind_video
+                                ))
+                            }
                             append("  ·  ")
                             append(DateFormat.getDateTimeInstance(
                                 DateFormat.SHORT, DateFormat.SHORT
@@ -257,6 +280,12 @@ private fun EntryCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (entry.isPlaylist && !entry.savedPath.isNullOrBlank()) {
+                        Text(entry.savedPath!!,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
                 AssistChip(
                     onClick = {},

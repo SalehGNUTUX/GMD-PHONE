@@ -1,11 +1,13 @@
 package com.gnutux.gmd.ui
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -55,6 +57,33 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
     }
 
     LaunchedEffect(Unit) { vm.checkForUpdatesOnLaunch() }
+
+    var confirmExit by remember { mutableStateOf(false) }
+
+    // زرُّ الرجوع: يعودُ إلى القائمة من أيِّ شاشةٍ فرعيّة، ولا يخرجُ من التطبيقِ
+    // إلّا من القائمةِ نفسِها وبعدَ تأكيد. وكان يخرجُ رأساً من أيِّ موضعٍ بلا سؤال،
+    // فيُفقَد ما في الحقولِ بضغطةٍ واحدةٍ غيرِ مقصودة.
+    BackHandler(enabled = screen != Screen.Menu) { screen = Screen.Menu }
+    BackHandler(enabled = screen == Screen.Menu && !confirmExit) { confirmExit = true }
+
+    if (confirmExit) {
+        val activity = LocalContext.current as? Activity
+        AlertDialog(
+            onDismissRequest = { confirmExit = false },
+            title = { Text(stringResource(R.string.exit_title)) },
+            text = { Text(stringResource(R.string.exit_message)) },
+            confirmButton = {
+                TextButton(onClick = { confirmExit = false; activity?.finish() }) {
+                    Text(stringResource(R.string.exit_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmExit = false }) {
+                    Text(stringResource(R.string.exit_stay))
+                }
+            },
+        )
+    }
 
     Scaffold(
         topBar = {

@@ -37,7 +37,15 @@ data class HistoryEntry(
     /** حدّا المقطع بالثواني إن طُلب اقتصاص، لتُعاد المحاولة بمثله. */
     val sectionStart: Int? = null,
     val sectionEnd: Int? = null,
+    /**
+     * قائمةُ التشغيل تُسجَّل مدخلاً واحداً بمعلوماتها كاملةً لا مدخلاً لكلِّ ملفّ:
+     * المستخدمُ طلبَ قائمةً فيُعرَض له ما طلب، لا ثلاثون سطراً متشابهاً.
+     */
+    val playlistTitle: String? = null,
+    val playlistRequested: Int? = null,
+    val playlistSaved: Int? = null,
 ) {
+    val isPlaylist: Boolean get() = playlistRequested != null
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
         put("url", url)
@@ -55,6 +63,9 @@ data class HistoryEntry(
         put("timestamp", timestamp)
         sectionStart?.let { put("sectionStart", it) }
         sectionEnd?.let { put("sectionEnd", it) }
+        playlistTitle?.let { put("playlistTitle", it) }
+        playlistRequested?.let { put("playlistRequested", it) }
+        playlistSaved?.let { put("playlistSaved", it) }
     }
 
     companion object {
@@ -77,6 +88,10 @@ data class HistoryEntry(
                 timestamp = o.optLong("timestamp"),
                 sectionStart = if (o.has("sectionStart")) o.optInt("sectionStart") else null,
                 sectionEnd = if (o.has("sectionEnd")) o.optInt("sectionEnd") else null,
+                playlistTitle = o.optStringOrNull("playlistTitle"),
+                playlistRequested =
+                    if (o.has("playlistRequested")) o.optInt("playlistRequested") else null,
+                playlistSaved = if (o.has("playlistSaved")) o.optInt("playlistSaved") else null,
             )
         }.getOrNull()
     }

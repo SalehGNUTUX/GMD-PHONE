@@ -7,7 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -18,6 +21,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
@@ -73,11 +82,14 @@ fun DownloadScreen(
     val format by vm.audioFormat.collectAsStateWithLifecycle()
     val info by vm.info.collectAsStateWithLifecycle()
     val clipOn by vm.clipEnabled.collectAsStateWithLifecycle()
+    val playlist by vm.playlist.collectAsStateWithLifecycle()
+    val plSelection by vm.playlistSelection.collectAsStateWithLifecycle()
     val running = progress is Progress.Running
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         UrlField(vm)
         MediaPreviewCard(vm)
+        PlaylistCard(vm)
 
         Text(
             stringResource(if (isAudio) R.string.format else R.string.quality),
@@ -103,7 +115,7 @@ fun DownloadScreen(
             }
         }
 
-        ClipSection(vm)
+        if (playlist == null) ClipSection(vm)
 
         if (running) {
             val p = progress as Progress.Running
@@ -131,6 +143,7 @@ fun DownloadScreen(
                     DownloadService.reset()
                     val i = info
                     val sec = vm.section()
+                    val pl = playlist
                     DownloadService.start(
                         context, url.trim(), isAudio,
                         if (isAudio) format.name else quality.name,
@@ -138,14 +151,23 @@ fun DownloadScreen(
                         duration = i?.duration, thumbnail = i?.thumbnail,
                         sectionStart = sec?.startSec ?: -1,
                         sectionEnd = sec?.endSec ?: -1,
+                        playlistFolder = pl?.folderName(),
+                        playlistItems = if (pl != null) plSelection.sorted().toIntArray() else null,
+                        playlistTitle = pl?.title,
                     )
                 },
-                enabled = enabled && url.isNotBlank() && (!clipOn || vm.section() != null),
+                enabled = enabled && url.isNotBlank() &&
+                    (!clipOn || vm.section() != null) &&
+                    (playlist == null || plSelection.isNotEmpty()),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(Icons.Filled.Download, null)
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.download))
+                Text(
+                    if (playlist != null)
+                        stringResource(R.string.playlist_download_n, plSelection.size)
+                    else stringResource(R.string.download)
+                )
             }
         }
 
@@ -326,12 +348,17 @@ private fun DoneCard(done: Progress.Done, isAudio: Boolean, onOpenGallery: () ->
                 Text(stringResource(R.string.notif_done),
                     style = MaterialTheme.typography.titleSmall)
             }
-            Text(done.displayName, style = MaterialTheme.typography.bodySmall)
+            Text(
+                if (done.count > 1)
+                    "${done.displayName}  —  ${stringResource(R.string.done_files, done.count)}"
+                else done.displayName,
+                style = MaterialTheme.typography.bodySmall,
+            )
             Text("${stringResource(R.string.save_to)}: ${done.relativePath}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = {
+                if (done.count == 1) TextButton(onClick = {
                     val ok = runCatching {
                         context.startActivity(
                             Intent(Intent.ACTION_VIEW)
@@ -342,7 +369,7 @@ private fun DoneCard(done: Progress.Done, isAudio: Boolean, onOpenGallery: () ->
                     }.getOrDefault(false)
                     if (!ok) Toast.makeText(context, noAppLabel, Toast.LENGTH_SHORT).show()
                 }) { Text(stringResource(R.string.play_file)) }
-                TextButton(onClick = {
+                if (done.count == 1) TextButton(onClick = {
                     runCatching {
                         context.startActivity(Intent.createChooser(
                             Intent(Intent.ACTION_SEND)
@@ -417,6 +444,139 @@ private fun ClipSection(vm: GmdViewModel) {
                 color = if (rangeOk) MaterialTheme.colorScheme.onSurfaceVariant
                         else MaterialTheme.colorScheme.error,
             )
+        }
+    }
+}
+
+/**
+ * يعرضُ ملاحظاتِ الإصدارِ نصّاً مقروءاً لا ترميزاً خاماً.
+ *
+ * الملاحظاتُ تأتي من CHANGELOG بصيغةِ Markdown، وكانت تُعرَضُ كما هي فتظهرُ
+ * النجومُ والشَّرَطاتُ حروفاً بينَ يدَي القارئ. ولا مُصيِّرَ Markdown في Compose،
+ * وإدخالُ مكتبةٍ لأجلِ بطاقةِ تحديثٍ ثمنٌ بلا مقابل — فيكفي تحويلُ ما يَرِدُ فعلاً
+ * في سجلِّ هذا المشروع: العريضُ والشيفرةُ والعناوينُ والقوائم.
+ */
+private fun renderNotes(md: String): AnnotatedString = buildAnnotatedString {
+    val bold = SpanStyle(fontWeight = FontWeight.Bold)
+    val code = SpanStyle(fontFamily = FontFamily.Monospace)
+
+    md.lineSequence().forEach { raw ->
+        val line = raw.trimEnd()
+        when {
+            // الفواصل الأفقيّة لا معنى لها في بطاقةٍ صغيرة
+            line.trim().matches(Regex("^-{3,}$")) -> return@forEach
+            line.isBlank() -> { append("\n"); return@forEach }
+            else -> Unit
+        }
+
+        var text = line
+        // العنوان يُجرَّد من علاماته ويُكتَبُ عريضاً
+        val heading = Regex("^#{1,6}\\s+").find(text)
+        if (heading != null) text = text.removeRange(heading.range)
+        // عنصر القائمة يأخذ نقطةً بدل الشَّرطة
+        val bullet = Regex("^[-*]\\s+").find(text)
+        if (bullet != null) {
+            text = text.removeRange(bullet.range)
+            append("• ")
+        }
+
+        // ثمّ يُقسَم السطر على العريض والشيفرة بحسب ترتيب ورودها
+        val marks = Regex("\\*\\*(.+?)\\*\\*|`([^`]+)`")
+        var last = 0
+        marks.findAll(text).forEach { m ->
+            append(text.substring(last, m.range.first))
+            val b = m.groupValues[1]
+            if (b.isNotEmpty()) withStyle(bold) { append(b) }
+            else withStyle(code) { append(m.groupValues[2]) }
+            last = m.range.last + 1
+        }
+        append(text.substring(last))
+
+        if (heading != null) {
+            // العنوان بلا علاماته يبقى بلا تمييز، فيُعرَّض كلُّه
+            addStyle(bold, length - text.length, length)
+        }
+        append("\n")
+    }
+}
+
+/**
+ * قائمةُ التشغيلِ حين يقعُ خلفَ الرابطِ أكثرُ من مقطع.
+ *
+ * الأسلوبُ من نسخةِ الحاسوب — كشفٌ تلقائيّ، وقائمةُ عناصرَ بمربّعاتِ اختيار،
+ * وتحديدُ الكلِّ، وعدَدٌ ظاهرٌ على زرِّ التنزيل — والقالبُ من الهاتف: بطاقةُ
+ * Material 3 داخلَ الشاشةِ لا نافذةٌ منبثقةٌ تحجبُ ما وراءَها، فالشاشةُ ضيّقةٌ
+ * والنافذةُ فيها تُخفي الجودةَ والصيغةَ اللتَين قد يريدُ تغييرَهما قبلَ التنزيل.
+ */
+@Composable
+private fun PlaylistCard(vm: GmdViewModel) {
+    val playlist by vm.playlist.collectAsStateWithLifecycle()
+    val selection by vm.playlistSelection.collectAsStateWithLifecycle()
+    val pl = playlist ?: return
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Filled.PlaylistPlay, null, tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        pl.title.ifBlank { stringResource(R.string.playlist_detected) },
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        stringResource(R.string.playlist_selected_of, selection.size, pl.count),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = { vm.togglePlaylistAll() }) {
+                    Text(stringResource(
+                        if (selection.size == pl.count) R.string.gallery_select_none
+                        else R.string.gallery_select_all
+                    ))
+                }
+            }
+
+            Text(
+                stringResource(R.string.playlist_folder_note, pl.folderName()),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            HorizontalDivider()
+
+            // العناصرُ في عمودٍ محدودِ الارتفاع: الشاشةُ كلُّها داخلَ تمريرٍ واحد،
+            // فقائمةٌ من مئةِ عنصرٍ بلا حدٍّ تدفعُ زرَّ التنزيلِ خارجَ متناولِ اليد.
+            Column(
+                Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState()),
+            ) {
+                pl.entries.forEach { e ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { vm.togglePlaylistItem(e.index) }
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = e.index in selection,
+                            onCheckedChange = { vm.togglePlaylistItem(e.index) },
+                        )
+                        Text(
+                            "${e.index}. ${e.title}",
+                            Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        if (e.duration.isNotBlank()) {
+                            Text(e.duration, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -655,8 +815,9 @@ private fun UpdateSection(vm: GmdViewModel, update: UpdatePhase, context: Contex
                         }
                     }
                     if (u.info.notes.isNotBlank()) {
-                        Text(u.info.notes.take(400), style = MaterialTheme.typography.bodySmall,
-                            maxLines = 8, overflow = TextOverflow.Ellipsis)
+                        Text(renderNotes(u.info.notes.take(600)),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 10, overflow = TextOverflow.Ellipsis)
                     }
                     val asset = u.info.asset
                     if (asset == null) {

@@ -136,4 +136,20 @@
     <string name="clip_invalid">النهايةُ يجبُ أن تلي البداية.</string>
     <string name="ytdlp_up_to_date">‏yt-dlp على أحدثِ نسخةٍ متاحةٍ أصلاً</string>
     <string name="ytdlp_updated_to">حُدِّثَ yt-dlp إلى %1$s</string>
+    <string name="notif_channel_update">تحديث البرنامج</string>
+    <string name="update_downloading">جارٍ تنزيلُ التحديث</string>
+    <string name="update_ready_to_install">اكتملَ تنزيلُ التحديث — انقر للتثبيت</string>
+    <string name="exit_title">أتخرجُ من GMD؟</string>
+    <string name="exit_message">التنزيلُ الجاري يُكمِلُ عملَه في الخلفيّةِ ولا يتأثّر.</string>
+    <string name="exit_confirm">اخرج</string>
+    <string name="exit_stay">ابقَ</string>
+    <string name="playlist_detected">قائمةُ تشغيل</string>
+    <string name="playlist_selected_of">محدَّدٌ %1$d من %2$d</string>
+    <string name="playlist_download_n">نزّل %1$d</string>
+    <string name="playlist_folder_note">تُحفَظُ في مجلَّدٍ خاصٍّ بها: GMD/%1$s</string>
+    <string name="gallery_count_with_folders">%1$d مقطعاً · %2$d قائمة</string>
+    <string name="gallery_folder_items">%1$d مقاطع</string>
+    <string name="history_playlist_saved">حُفِظَ %1$d من %2$d</string>
+    <string name="history_playlist_requested">طُلِبَ %1$d عنصراً</string>
+    <string name="done_files">%1$d ملفّات</string>
 </resources>

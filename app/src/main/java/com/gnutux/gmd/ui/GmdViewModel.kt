@@ -7,10 +7,13 @@ import com.gnutux.gmd.data.Settings
 import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.Downloader
 import com.gnutux.gmd.download.MediaInfo
+import com.gnutux.gmd.download.PlaylistInfo
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Section
 import com.gnutux.gmd.GmdApp
 import com.gnutux.gmd.ToolsState
+import com.gnutux.gmd.update.UpdateDownload
+import com.gnutux.gmd.update.UpdateService
 import com.gnutux.gmd.update.Updater
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +45,22 @@ sealed interface UpdatePhase {
 class GmdViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settings = Settings(app)
+
+    init {
+        // حالةُ التنزيل تُملَى من الخدمة لا من هنا، فهي التي تبقى حيّةً بعد
+        // مغادرة الواجهة، وإليها يعود المستخدمُ فيجد التقدُّم كما تركه.
+        viewModelScope.launch {
+            UpdateService.state.collect { s ->
+                when (s) {
+                    is UpdateDownload.Running -> _update.value =
+                        UpdatePhase.Downloading(s.received, s.total)
+                    is UpdateDownload.Done -> _update.value = UpdatePhase.Downloaded(s.file)
+                    is UpdateDownload.Failed -> _update.value = UpdatePhase.Error(s.message)
+                    UpdateDownload.Idle -> Unit
+                }
+            }
+        }
+    }
 
     var url = MutableStateFlow("")
         private set
@@ -99,6 +118,23 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
     private val _infoLoading = MutableStateFlow(false)
     val infoLoading: StateFlow<Boolean> = _infoLoading
 
+    // ── قائمة التشغيل ─────────────────────────────────────────────────────────
+    private val _playlist = MutableStateFlow<PlaylistInfo?>(null)
+    val playlist: StateFlow<PlaylistInfo?> = _playlist
+
+    /** مؤشّرات العناصر المختارة؛ الكلُّ مختارٌ عند الكشف كما في نسخة الحاسوب. */
+    val playlistSelection = MutableStateFlow<Set<Int>>(emptySet())
+
+    fun togglePlaylistItem(index: Int) {
+        val s = playlistSelection.value
+        playlistSelection.value = if (index in s) s - index else s + index
+    }
+
+    fun togglePlaylistAll() {
+        val all = _playlist.value?.entries?.map { it.index }?.toSet().orEmpty()
+        playlistSelection.value = if (playlistSelection.value.size == all.size) emptySet() else all
+    }
+
     private val _infoError = MutableStateFlow<String?>(null)
     val infoError: StateFlow<String?> = _infoError
 
@@ -110,8 +146,6 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
 
     val autoCheckUpdates = settings.autoCheckUpdates
     val allowPrerelease = settings.allowPrerelease
-
-    @Volatile private var cancelDownload = false
 
     private var autoInfoJob: Job? = null
 
@@ -126,6 +160,8 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         url.value = value
         _info.value = null
         _infoError.value = null
+        _playlist.value = null
+        playlistSelection.value = emptySet()
         autoInfoJob?.cancel()
         _infoLoading.value = false
 
@@ -137,10 +173,18 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
             // الأدواتُ قد تكونُ ما تزالُ تُهيَّأُ عندَ أوّلِ تشغيل
             if (GmdApp.instance.tools.value !is ToolsState.Ready) return@launch
             _infoLoading.value = true
-            Downloader.fetchInfo(target).fold(
-                onSuccess = { _info.value = it },
-                onFailure = { _infoError.value = it.message ?: "failed" },
-            )
+            // الكشفُ عن القائمة أوّلاً: `--flat-playlist` طلبٌ واحدٌ مهما طالت،
+            // ولو سألنا عن المقطعِ أوّلاً لجلبنا بياناتِ أوّلِ عنصرٍ لا القائمة.
+            val pl = Downloader.fetchPlaylist(target)
+            if (pl != null) {
+                _playlist.value = pl
+                playlistSelection.value = pl.entries.map { it.index }.toSet()
+            } else {
+                Downloader.fetchInfo(target).fold(
+                    onSuccess = { _info.value = it },
+                    onFailure = { _infoError.value = it.message ?: "failed" },
+                )
+            }
             _infoLoading.value = false
         }
     }
@@ -222,23 +266,23 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * يُسلّم التنزيلَ إلى خدمةٍ مقدِّمة.
+     *
+     * كان يجري في نطاق هذا الـViewModel، وأندرويد يُجمّد العمليّة حين تغادر
+     * الواجهةُ المقدّمةَ — فحزمةٌ تقارب 40 م.ب تموت في منتصفها كلّما نظر
+     * المستخدمُ في تطبيقٍ آخر. والاستئناف من موضع الانقطاع يتكفّل به
+     * [Updater.download] بملفّ `.part` وترويسة `Range`.
+     */
     fun downloadUpdate(asset: Updater.Asset) {
-        cancelDownload = false
-        viewModelScope.launch {
-            _update.value = UpdatePhase.Downloading(0, asset.size)
-            Updater.download(getApplication(), asset, { cancelDownload }) { received, total ->
-                _update.value = UpdatePhase.Downloading(received, total)
-            }.fold(
-                onSuccess = { _update.value = UpdatePhase.Downloaded(it) },
-                onFailure = {
-                    _update.value = if (cancelDownload) UpdatePhase.Idle
-                    else UpdatePhase.Error(it.message ?: "failed")
-                },
-            )
-        }
+        UpdateService.reset()
+        UpdateService.start(getApplication(), asset)
     }
 
-    fun cancelUpdateDownload() { cancelDownload = true }
+    fun cancelUpdateDownload() {
+        UpdateService.stop(getApplication())
+        _update.value = UpdatePhase.Idle
+    }
     fun dismissUpdate() { _update.value = UpdatePhase.Idle }
 
     private companion object {
