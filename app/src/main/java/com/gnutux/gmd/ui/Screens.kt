@@ -71,6 +71,8 @@ fun DownloadScreen(
     val url by vm.url.collectAsStateWithLifecycle()
     val quality by vm.quality.collectAsStateWithLifecycle()
     val format by vm.audioFormat.collectAsStateWithLifecycle()
+    val info by vm.info.collectAsStateWithLifecycle()
+    val clipOn by vm.clipEnabled.collectAsStateWithLifecycle()
     val running = progress is Progress.Running
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -101,6 +103,8 @@ fun DownloadScreen(
             }
         }
 
+        ClipSection(vm)
+
         if (running) {
             val p = progress as Progress.Running
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -125,10 +129,18 @@ fun DownloadScreen(
             Button(
                 onClick = {
                     DownloadService.reset()
-                    DownloadService.start(context, url.trim(), isAudio,
-                        if (isAudio) format.name else quality.name)
+                    val i = info
+                    val sec = vm.section()
+                    DownloadService.start(
+                        context, url.trim(), isAudio,
+                        if (isAudio) format.name else quality.name,
+                        title = i?.title, uploader = i?.uploader,
+                        duration = i?.duration, thumbnail = i?.thumbnail,
+                        sectionStart = sec?.startSec ?: -1,
+                        sectionEnd = sec?.endSec ?: -1,
+                    )
                 },
-                enabled = enabled && url.isNotBlank(),
+                enabled = enabled && url.isNotBlank() && (!clipOn || vm.section() != null),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(Icons.Filled.Download, null)
@@ -345,6 +357,66 @@ private fun DoneCard(done: Progress.Done, isAudio: Boolean, onOpenGallery: () ->
                     Text(stringResource(R.string.menu_gallery))
                 }
             }
+        }
+    }
+}
+
+/**
+ * اقتصاصُ جزءٍ من المادّة.
+ *
+ * على الهاتفِ هذا توفيرٌ لا زينة: المسلكُ الأوّلُ يطلبُ من الخادمِ الجزءَ وحدَه فلا
+ * يُنزَّلُ ما لا يُراد. وإن رفضَ الموقعُ ذلك — يوتيوب يردُّ 403 على جلبِ ffmpeg
+ * نطاقاً من روابطه — نُزِّلت المادّةُ كاملةً واقتُصّت في الجهاز، بلا تدخّلٍ من
+ * المستخدمِ ولا سؤال.
+ */
+@Composable
+private fun ClipSection(vm: GmdViewModel) {
+    val enabled by vm.clipEnabled.collectAsStateWithLifecycle()
+    val start by vm.clipStart.collectAsStateWithLifecycle()
+    val end by vm.clipEnd.collectAsStateWithLifecycle()
+
+    val startOk = start.isBlank() || vm.parseClock(start) != null
+    val endOk = end.isBlank() || vm.parseClock(end) != null
+    val rangeOk = !enabled || vm.section() != null
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(stringResource(R.string.clip_title), Modifier.weight(1f),
+                style = MaterialTheme.typography.labelLarge)
+            Switch(checked = enabled, onCheckedChange = { vm.clipEnabled.value = it })
+        }
+
+        if (enabled) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = start,
+                    onValueChange = { vm.clipStart.value = it },
+                    label = { Text(stringResource(R.string.clip_from)) },
+                    placeholder = { Text("0:00") },
+                    singleLine = true,
+                    isError = !startOk,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = end,
+                    onValueChange = { vm.clipEnd.value = it },
+                    label = { Text(stringResource(R.string.clip_to)) },
+                    placeholder = { Text("1:30") },
+                    singleLine = true,
+                    isError = !endOk,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text(
+                stringResource(if (rangeOk) R.string.clip_hint else R.string.clip_invalid),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (rangeOk) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.error,
+            )
         }
     }
 }

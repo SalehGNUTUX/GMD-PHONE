@@ -8,6 +8,7 @@ import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.Downloader
 import com.gnutux.gmd.download.MediaInfo
 import com.gnutux.gmd.download.Quality
+import com.gnutux.gmd.download.Section
 import com.gnutux.gmd.GmdApp
 import com.gnutux.gmd.ToolsState
 import com.gnutux.gmd.update.Updater
@@ -37,6 +38,51 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         private set
     val quality = MutableStateFlow(Quality.P1080)
     val audioFormat = MutableStateFlow(AudioFormat.MP3)
+
+    // ── الاقتصاص ──────────────────────────────────────────────────────────────
+    // النصُّ يبقى كما يكتبه المستخدم ويُحلَّل عند الطلب، فتحويله رقماً مع كلِّ حرفٍ
+    // يمنعه من كتابة «1:05» أصلاً — تُمسَح «:» قبل أن يبلغها.
+    val clipEnabled = MutableStateFlow(false)
+    val clipStart = MutableStateFlow("")
+    val clipEnd = MutableStateFlow("")
+
+    /** يقبل ثوانيَ مجرّدة، أو m:ss، أو h:mm:ss. ويُعيد null إن لم يصحّ. */
+    fun parseClock(text: String): Int? {
+        val t = text.trim()
+        if (t.isEmpty()) return null
+        val parts = t.split(":")
+        if (parts.size > 3) return null
+        var total = 0
+        for (p in parts) {
+            val n = p.trim().toIntOrNull() ?: return null
+            if (n < 0) return null
+            total = total * 60 + n
+        }
+        return total
+    }
+
+    /** المقطع المطلوب، أو null إن كان الاقتصاص مطفأً أو حدّاه غير صالحين. */
+    fun section(): Section? {
+        if (!clipEnabled.value) return null
+        val s = parseClock(clipStart.value) ?: 0
+        val e = parseClock(clipEnd.value) ?: return null
+        return Section(s, e).takeIf { it.valid }
+    }
+
+    /** يملأ حقول الاقتصاص من محاولةٍ سابقة، لتُعاد بمثلها. */
+    fun setSection(start: Int?, end: Int?) {
+        if (start == null || end == null) {
+            clipEnabled.value = false; clipStart.value = ""; clipEnd.value = ""
+            return
+        }
+        clipEnabled.value = true
+        clipStart.value = formatClock(start)
+        clipEnd.value = formatClock(end)
+    }
+
+    private fun formatClock(t: Int): String =
+        if (t >= 3600) "%d:%02d:%02d".format(t / 3600, (t % 3600) / 60, t % 60)
+        else "%d:%02d".format(t / 60, t % 60)
 
     private val _info = MutableStateFlow<MediaInfo?>(null)
     val info: StateFlow<MediaInfo?> = _info

@@ -19,3 +19,21 @@
 -keep class org.apache.commons.** { *; }
 -dontwarn org.apache.commons.**
 -keepclassmembers class * { @com.fasterxml.jackson.annotation.* *; }
+
+# ── قابليّة التشخيص ─────────────────────────────────────────────────────────
+# `P2.f` الذي أسقط alpha.1 لم يكن رسالة خطأ بل اسمَ صنفِ استثناءٍ شوّشه R8. وبلا
+# جهازٍ متّصلٍ بـlogcat فاسمُ الاستثناء كلُّ ما يصل من جهاز المستخدم، فإن ضاع ضاع
+# التشخيص معه. هذه القاعدة تُبقي أسماء الاستثناءات كلِّها مقروءةً بلا أن تمنع
+# تصغيرَ أجسامها.
+-keepnames class * extends java.lang.Throwable
+-keepattributes SourceFile,LineNumberTable
+
+# ── تبعيّات تُستدعى بالانعكاس ────────────────────────────────────────────────
+# Jackson يبني كائناته بالانعكاس على المُنشئات والحقول، فحذفُ ما يبدو غير مستعمَل
+# يُسقطه وقت التشغيل لا وقت البناء.
+-keepclassmembers class com.yausername.** {
+    <init>(...);
+    <fields>;
+}
+-keep class * extends com.fasterxml.jackson.databind.JsonDeserializer
+-keep class * extends com.fasterxml.jackson.databind.JsonSerializer

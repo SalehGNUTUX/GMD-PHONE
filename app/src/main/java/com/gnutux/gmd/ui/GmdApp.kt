@@ -27,10 +27,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gnutux.gmd.GmdApp as AppClass
 import com.gnutux.gmd.R
 import com.gnutux.gmd.ToolsState
+import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.DownloadService
+import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Progress
 
-enum class Screen { Menu, Video, Audio, Gallery, Info, Settings }
+enum class Screen { Menu, Video, Audio, Gallery, History, Info, Settings }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +66,7 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                             Screen.Video -> stringResource(R.string.video_title)
                             Screen.Audio -> stringResource(R.string.audio_title)
                             Screen.Gallery -> stringResource(R.string.gallery_title)
+                            Screen.History -> stringResource(R.string.history_title)
                             Screen.Info -> stringResource(R.string.info_title)
                             Screen.Settings -> stringResource(R.string.settings_title)
                         },
@@ -122,6 +125,20 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                     onOpenGallery = { screen = Screen.Gallery },
                 )
                 Screen.Gallery -> GalleryScreen()
+                Screen.History -> HistoryScreen(onRetry = { entry ->
+                    // إعادةُ المحاولةِ بالجودةِ نفسِها: أنفعُ ما في السجلّ، فإغلاقُ
+                    // بطاقةِ الخطأِ كان يُضيعُ الرابطَ وسببَ الفشلِ معاً.
+                    vm.setUrl(entry.url)
+                    vm.setSection(entry.sectionStart, entry.sectionEnd)
+                    if (entry.isAudio) {
+                        runCatching { vm.audioFormat.value = AudioFormat.valueOf(entry.choice) }
+                        screen = Screen.Audio
+                    } else {
+                        runCatching { vm.quality.value = Quality.valueOf(entry.choice) }
+                        screen = Screen.Video
+                    }
+                    DownloadService.reset()
+                })
                 Screen.Info -> InfoScreen(vm, enabled = tools is ToolsState.Ready)
                 Screen.Settings -> SettingsScreen(vm)
             }
@@ -192,6 +209,7 @@ private fun MenuScreen(onPick: (Screen) -> Unit) {
         Item(Screen.Video, Icons.Filled.Movie, R.string.menu_video),
         Item(Screen.Audio, Icons.Filled.MusicNote, R.string.menu_audio),
         Item(Screen.Gallery, Icons.Filled.PhotoLibrary, R.string.menu_gallery),
+        Item(Screen.History, Icons.Filled.History, R.string.menu_history),
         Item(Screen.Info, Icons.Filled.Info, R.string.menu_info),
         Item(Screen.Settings, Icons.Filled.Settings, R.string.menu_settings),
     )

@@ -15,6 +15,9 @@ import androidx.core.app.NotificationCompat
 import com.gnutux.gmd.MainActivity
 import com.gnutux.gmd.R
 import com.gnutux.gmd.data.LocalePrefs
+import com.gnutux.gmd.history.HistoryEntry
+import com.gnutux.gmd.history.HistoryStore
+import com.gnutux.gmd.history.Outcome
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -45,6 +48,23 @@ class DownloadService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var currentProcessId: String? = null
 
+    /** بياناتُ المحاولةِ الجاريةِ، تُكتَبُ في السجلِّ مهما آلت إليه. */
+    private data class Attempt(
+        val url: String,
+        val isAudio: Boolean,
+        val choice: String,
+        val title: String?,
+        val uploader: String?,
+        val duration: String?,
+        val thumbnail: String?,
+        val section: Section?,
+    )
+
+    private var attempt: Attempt? = null
+
+    /** يمنعُ تسجيلَ المحاولةِ مرّتَين: الإلغاءُ يُنهي المهمّةَ وقد سُجِّلت. */
+    private val recorded = java.util.concurrent.atomic.AtomicBoolean(false)
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     /** الإشعاراتُ تُكتَبُ بلغةِ الواجهةِ المختارة، لا بلغةِ النظامِ وحدَها. */
@@ -69,16 +89,35 @@ class DownloadService : Service() {
         val choice = intent.getStringExtra(EXTRA_CHOICE).orEmpty()
         if (url.isBlank()) { stopSelf(); return START_NOT_STICKY }
 
+        // تُلتقَط الآن لأنّ `intent` لا يبقى متاحاً داخل المهمّة المتزامنة
+        attempt = Attempt(
+            url = url,
+            isAudio = isAudio,
+            choice = choice,
+            title = intent.getStringExtra(EXTRA_TITLE),
+            uploader = intent.getStringExtra(EXTRA_UPLOADER),
+            duration = intent.getStringExtra(EXTRA_DURATION),
+            thumbnail = intent.getStringExtra(EXTRA_THUMB),
+            section = Section(
+                intent.getIntExtra(EXTRA_START, -1),
+                intent.getIntExtra(EXTRA_END, -1),
+            ).takeIf { it.valid },
+        )
+
         startForegroundCompat(buildNotification(0, getString(R.string.notif_downloading), ongoing = true))
         acquireWakeLock()
 
         val processId = System.currentTimeMillis().toString()
         currentProcessId = processId
+        recorded.set(false)
 
+        val section = attempt?.section
         val job: Job = if (isAudio) {
-            Job.Audio(url, runCatching { AudioFormat.valueOf(choice) }.getOrDefault(AudioFormat.MP3))
+            Job.Audio(url,
+                runCatching { AudioFormat.valueOf(choice) }.getOrDefault(AudioFormat.MP3), section)
         } else {
-            Job.Video(url, runCatching { Quality.valueOf(choice) }.getOrDefault(Quality.P1080))
+            Job.Video(url,
+                runCatching { Quality.valueOf(choice) }.getOrDefault(Quality.P1080), section)
         }
 
         scope.launch {
@@ -92,6 +131,8 @@ class DownloadService : Service() {
                 onSuccess = { file ->
                     MediaStoreSaver.save(applicationContext, file, isAudio).fold(
                         onSuccess = { saved ->
+                            record(Outcome.SUCCESS, null, saved.uri.toString(),
+                                saved.displayName, saved.relativePath)
                             _progress.value =
                                 Progress.Done(saved.displayName, saved.relativePath, saved.uri.toString())
                             notify(buildNotification(100, getString(R.string.notif_done), ongoing = false,
@@ -109,12 +150,45 @@ class DownloadService : Service() {
 
     private fun fail(t: Throwable) {
         val msg = t.message ?: t::class.java.simpleName
+        record(Outcome.FAILED, msg, null, null, null)
         _progress.value = Progress.Failed(msg)
         notify(buildNotification(0, getString(R.string.notif_failed), ongoing = false, text = msg))
     }
 
+    /**
+     * يكتبُ المحاولةَ في السجلِّ مرّةً واحدة. يُستدعى من ثلاثةِ مسالكَ — نجاحٌ وفشلٌ
+     * وإلغاء — وقد يتلاقى مسلكانِ حينَ يُلغي المستخدمُ تنزيلاً في لحظةِ انتهائه،
+     * فالحارسُ الذرّيُّ يمنعُ مدخلَين لمحاولةٍ واحدة.
+     */
+    private fun record(
+        outcome: Outcome,
+        error: String?,
+        uri: String?,
+        name: String?,
+        path: String?,
+    ) {
+        val a = attempt ?: return
+        if (!recorded.compareAndSet(false, true)) return
+        val now = System.currentTimeMillis()
+        // نطاقٌ مستقلٌّ عن `scope`: هذا الأخير يُلغى في onDestroy وقد تُقتَل الخدمةُ
+        // فور التسجيل، فتضيع الكتابة.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            HistoryStore.add(
+                applicationContext,
+                HistoryEntry(
+                    id = now, url = a.url, title = a.title, uploader = a.uploader,
+                    duration = a.duration, thumbnail = a.thumbnail, isAudio = a.isAudio,
+                    choice = a.choice, outcome = outcome, error = error,
+                    savedUri = uri, savedName = name, savedPath = path, timestamp = now,
+                    sectionStart = a.section?.startSec, sectionEnd = a.section?.endSec,
+                ),
+            )
+        }
+    }
+
     private fun stopWork() {
         currentProcessId?.let { Downloader.cancel(it) }
+        record(Outcome.CANCELLED, null, null, null, null)
         _progress.value = Progress.Idle
         finish()
     }
@@ -200,18 +274,46 @@ class DownloadService : Service() {
         private const val EXTRA_URL = "url"
         private const val EXTRA_IS_AUDIO = "isAudio"
         private const val EXTRA_CHOICE = "choice"
+        private const val EXTRA_TITLE = "title"
+        private const val EXTRA_UPLOADER = "uploader"
+        private const val EXTRA_DURATION = "duration"
+        private const val EXTRA_THUMB = "thumb"
+        private const val EXTRA_START = "sectionStart"
+        private const val EXTRA_END = "sectionEnd"
 
         private val _progress = MutableStateFlow<Progress>(Progress.Idle)
         val progress: StateFlow<Progress> = _progress
 
         fun reset() { _progress.value = Progress.Idle }
 
-        fun start(context: Context, url: String, isAudio: Boolean, choice: String) {
+        /**
+         * [title] وما بعدَه بياناتُ المقطعِ كما جُلِبت في الواجهةِ قبلَ التنزيل.
+         * تُمرَّرُ لتُحفَظَ في السجلّ: الخدمةُ لا تعرفُها ولا تُعيدُ جلبَها، فسؤالُ
+         * yt-dlp مرّةً ثانيةً عمّا في اليدِ إهدارُ ثوانٍ وشبكة.
+         */
+        fun start(
+            context: Context,
+            url: String,
+            isAudio: Boolean,
+            choice: String,
+            title: String? = null,
+            uploader: String? = null,
+            duration: String? = null,
+            thumbnail: String? = null,
+            sectionStart: Int = -1,
+            sectionEnd: Int = -1,
+        ) {
             val intent = Intent(context, DownloadService::class.java)
                 .setAction(ACTION_START)
                 .putExtra(EXTRA_URL, url)
                 .putExtra(EXTRA_IS_AUDIO, isAudio)
                 .putExtra(EXTRA_CHOICE, choice)
+                .putExtra(EXTRA_TITLE, title)
+                .putExtra(EXTRA_UPLOADER, uploader)
+                .putExtra(EXTRA_DURATION, duration)
+                .putExtra(EXTRA_THUMB, thumbnail)
+                .putExtra(EXTRA_START, sectionStart)
+                .putExtra(EXTRA_END, sectionEnd)
             androidx.core.content.ContextCompat.startForegroundService(context, intent)
         }
 

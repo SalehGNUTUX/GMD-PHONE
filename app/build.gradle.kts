@@ -34,8 +34,8 @@ android {
         // 24 هو أدنى ما تدعمه مكتبة yt-dlp لأندرويد (تُضمّن بايثون)
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "26.9.0-alpha.1"
+        versionCode = 2
+        versionName = "26.9.0-beta.1"
         resourceConfigurations += listOf("ar", "en")
     }
 
@@ -70,14 +70,12 @@ android {
             // بلا مفتاحٍ تخرج الحزمة غير موقَّعة فيرفض أندرويد تثبيتها؛ نتركها تُبنى
             // لأنّ البناء المحلّيّ للتجربة لا يحتاج مفتاحاً، والنشر يفشل في CI عمداً.
             signingConfig = if (hasSigningKey) signingConfigs.getByName("release") else null
-            // التصغير معطَّل في هذه السلسلة التجريبيّة. سببان:
-            // أوّلهما أنّ تهيئة الأدوات تفشل في حزمة release وحدَها، والتصغيرُ
-            // أوّلُ المتّهمين — تعطيلُه يفصل الفرضيّة عن غيرها بتجربةٍ واحدة.
-            // وثانيهما أنّ التشويشَ يُخرج أسماءَ الأصناف بلا معنى (‏P2.f)،
-            // فيضيعُ الاستثناءُ الحقيقيُّ وهو كلُّ ما نملكه من جهاز المستخدم.
-            // يُعاد تفعيلُه بعد تشخيصِ العطب واختبارِ الحزمة المصغَّرة على جهاز.
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // أُعيد التصغير بعد أن ثبت أنّ المكتبة لا تشحن قواعد حفظ إطلاقاً — لا
+            // proguard.txt في حزمتها — وأنّ القواعد المكتوبة في proguard-rules.pro
+            // لم تكن موجودةً يوم انهارت alpha.1. ومعها قاعدةٌ تُبقي أسماء
+            // الاستثناءات مقروءةً، فلا يعود عطبٌ يظهر باسمٍ مشوَّشٍ كـ`P2.f`.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         debug {
