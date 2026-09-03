@@ -512,6 +512,7 @@ fun SettingsScreen(vm: GmdViewModel) {
     val autoCheck by vm.autoCheckUpdates.collectAsStateWithLifecycle(initialValue = true)
     val allowPre by vm.allowPrerelease.collectAsStateWithLifecycle(initialValue = false)
     val ytdlp by vm.ytdlpVersion.collectAsStateWithLifecycle()
+    val toolPhase by vm.ytdlpPhase.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { vm.loadYtDlpVersion() }
 
@@ -533,14 +534,40 @@ fun SettingsScreen(vm: GmdViewModel) {
 
         HorizontalDivider()
 
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("yt-dlp", style = MaterialTheme.typography.bodyLarge)
-                Text(ytdlp ?: "—", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("yt-dlp", style = MaterialTheme.typography.bodyLarge)
+                    Text(ytdlp ?: "—", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (toolPhase is ToolPhase.Working) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                }
+                TextButton(
+                    enabled = toolPhase !is ToolPhase.Working,
+                    onClick = { vm.updateYtDlp() },
+                ) {
+                    // الزرُّ يُحدِّث الأداة، ونصُّه كان «تحقّق من وجود تحديث» —
+                    // مفتاحُ زرِّ تحديثِ البرنامج نفسِه، فيلتبس الفعلان.
+                    Text(stringResource(R.string.ytdlp_update))
+                }
             }
-            TextButton(onClick = { vm.updateYtDlp { } }) {
-                Text(stringResource(R.string.update_check_now))
+            when (val t = toolPhase) {
+                is ToolPhase.Working -> Text(stringResource(R.string.ytdlp_updating),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                is ToolPhase.UpToDate -> Text(stringResource(R.string.ytdlp_up_to_date),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary)
+                is ToolPhase.Updated -> Text(stringResource(R.string.ytdlp_updated_to, t.version),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary)
+                is ToolPhase.Failed -> Text("${stringResource(R.string.ytdlp_update_failed)} — ${t.message}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error)
+                ToolPhase.Idle -> Unit
             }
         }
 

@@ -134,4 +134,6 @@
     <string name="clip_to">إلى</string>
     <string name="clip_hint">الوقتُ 0:30 أو 1:05:20 أو ثوانٍ مجرّدة. والقطعُ يقعُ عند أقربِ إطارٍ مفتاحيّ، فثانيةٌ زيادةً أو نقصاً أمرٌ طبيعيّ.</string>
     <string name="clip_invalid">النهايةُ يجبُ أن تلي البداية.</string>
+    <string name="ytdlp_up_to_date">‏yt-dlp على أحدثِ نسخةٍ متاحةٍ أصلاً</string>
+    <string name="ytdlp_updated_to">حُدِّثَ yt-dlp إلى %1$s</string>
 </resources>

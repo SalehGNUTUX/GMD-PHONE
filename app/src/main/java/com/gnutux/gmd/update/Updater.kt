@@ -42,23 +42,74 @@ object Updater {
         val asset: Asset? = null,
     )
 
-    /** أوّل رقم منقَّط في الوسم، أيّاً كانت صيغته (v26.9.0، GMD-26.09، 1.92…). */
-    private val VERSION_RE = Regex("""(\d+)\.(\d+)(?:\.(\d+))?""")
+    /**
+     * رقم الإصدار مع لاحقة ما قبل الإصدار.
+     *
+     * إهمالُ اللاحقة كان يجعل `26.9.0-alpha.1` و`26.9.0-beta.1` سواءً في
+     * المقارنة، فيقول التطبيقُ «أنت على أحدث إصدار» وهو على أقدمِهما — ولا
+     * ينتقل بين إصدارَين تجريبيَّين يشتركان في الرقم أبداً.
+     */
+    private data class Version(
+        val major: Int,
+        val minor: Int,
+        val patch: Int,
+        /** معرّفات ما قبل الإصدار مفصولةً بنقطة؛ فارغةٌ في الإصدار المستقرّ. */
+        val pre: List<String> = emptyList(),
+    ) : Comparable<Version> {
 
-    private fun parse(text: String?): Triple<Int, Int, Int>? {
+        /** نصٌّ يعرضه للمستخدم كما هو في الوسم لا كما فُهم. */
+        fun display(): String =
+            "$major.$minor.$patch" + if (pre.isEmpty()) "" else "-" + pre.joinToString(".")
+
+        override fun compareTo(other: Version): Int {
+            major.compareTo(other.major).let { if (it != 0) return it }
+            minor.compareTo(other.minor).let { if (it != 0) return it }
+            patch.compareTo(other.patch).let { if (it != 0) return it }
+
+            // المستقرُّ يسبق ما قبله عند تساوي الرقم: 26.9.0 أحدث من 26.9.0-beta.1
+            if (pre.isEmpty() && other.pre.isEmpty()) return 0
+            if (pre.isEmpty()) return 1
+            if (other.pre.isEmpty()) return -1
+
+            // ثمّ تُقارَن المعرّفات واحداً واحداً كما في semver: الرقميُّ يسبق
+            // النصّيَّ، والرقميُّ يُقارَن عدداً لا حرفاً (‏10 بعد 9 لا قبلها).
+            for (i in 0 until maxOf(pre.size, other.pre.size)) {
+                val x = pre.getOrNull(i) ?: return -1
+                val y = other.pre.getOrNull(i) ?: return 1
+                val xn = x.toIntOrNull()
+                val yn = y.toIntOrNull()
+                val c = when {
+                    xn != null && yn != null -> xn.compareTo(yn)
+                    xn != null -> -1
+                    yn != null -> 1
+                    else -> x.compareTo(y)
+                }
+                if (c != 0) return c
+            }
+            return 0
+        }
+    }
+
+    /** أوّل رقم منقَّط في الوسم مع لاحقته (v26.9.0-beta.1، GMD-26.09، 1.92…). */
+    private val VERSION_RE =
+        Regex("""(\d+)\.(\d+)(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?""")
+
+    private fun parse(text: String?): Version? {
         val m = VERSION_RE.find(text.orEmpty()) ?: return null
-        return Triple(m.groupValues[1].toInt(), m.groupValues[2].toInt(),
-            m.groupValues[3].ifEmpty { "0" }.toInt())
+        val pre = m.groupValues[4].takeIf { it.isNotBlank() }
+            ?.split(".")?.filter { it.isNotBlank() }.orEmpty()
+        return Version(
+            m.groupValues[1].toInt(),
+            m.groupValues[2].toInt(),
+            m.groupValues[3].ifEmpty { "0" }.toInt(),
+            pre,
+        )
     }
 
     private fun isNewer(candidate: String?, current: String): Boolean {
         val a = parse(candidate) ?: return false
         val b = parse(current) ?: return false
-        return when {
-            a.first != b.first -> a.first > b.first
-            a.second != b.second -> a.second > b.second
-            else -> a.third > b.third
-        }
+        return a > b
     }
 
     /** معماريّة الجهاز أوّلاً، ثمّ الحزمة الموحّدة إن لم توجد. */
@@ -80,14 +131,14 @@ object Updater {
         runCatching {
             val releases = JSONArray(body)
             var best: JSONObject? = null
-            var bestV: Triple<Int, Int, Int>? = null
+            var bestV: Version? = null
 
             for (i in 0 until releases.length()) {
                 val r = releases.getJSONObject(i)
                 if (r.optBoolean("draft")) continue
                 if (!allowPrerelease && r.optBoolean("prerelease")) continue
                 val v = parse(r.optString("tag_name")) ?: continue
-                if (bestV == null || compare(v, bestV!!) > 0) { best = r; bestV = v }
+                if (bestV == null || v > bestV!!) { best = r; bestV = v }
             }
 
             val release = best ?: return@withContext Check(ok = true, current = current)
@@ -106,7 +157,7 @@ object Updater {
                 ok = true,
                 updateAvailable = isNewer(release.optString("tag_name"), current),
                 current = current,
-                version = bestV!!.let { "${it.first}.${it.second}.${it.third}" },
+                version = bestV!!.display(),
                 tag = release.optString("tag_name"),
                 prerelease = release.optBoolean("prerelease"),
                 notes = release.optString("body").take(4000),
@@ -115,9 +166,6 @@ object Updater {
             )
         }.getOrElse { Check(ok = false, error = it.message, current = current) }
     }
-
-    private fun compare(a: Triple<Int, Int, Int>, b: Triple<Int, Int, Int>): Int =
-        compareValuesBy(a, b, { it.first }, { it.second }, { it.third })
 
     fun cacheDir(context: Context): File =
         File(context.cacheDir, "updates").apply { mkdirs() }

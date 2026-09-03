@@ -20,6 +20,15 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 
+/** حالةُ تحديثِ ثنائيّ yt-dlp. */
+sealed interface ToolPhase {
+    data object Idle : ToolPhase
+    data object Working : ToolPhase
+    data object UpToDate : ToolPhase
+    data class Updated(val version: String) : ToolPhase
+    data class Failed(val message: String) : ToolPhase
+}
+
 sealed interface UpdatePhase {
     data object Idle : UpdatePhase
     data object Checking : UpdatePhase
@@ -154,13 +163,35 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { _ytdlpVersion.value = Downloader.version(getApplication()) }
     }
 
-    fun updateYtDlp(onDone: (Boolean) -> Unit) {
+    private val _ytdlpPhase = MutableStateFlow<ToolPhase>(ToolPhase.Idle)
+    val ytdlpPhase: StateFlow<ToolPhase> = _ytdlpPhase
+
+    /**
+     * تحديثُ ثنائيّ yt-dlp.
+     *
+     * كانت الحالةُ لا تُعرَض: يُنقَر الزرُّ فلا دوّارةَ ولا رسالة، ولا يُدرى أعملَ
+     * أم لم يعمل. صارت المراحلُ مكشوفةً كما في تحديثِ البرنامج نفسِه.
+     */
+    fun updateYtDlp(onDone: (Boolean) -> Unit = {}) {
+        if (_ytdlpPhase.value is ToolPhase.Working) return
         viewModelScope.launch {
-            val ok = Downloader.updateYtDlp(getApplication()).isSuccess
+            _ytdlpPhase.value = ToolPhase.Working
+            val result = Downloader.updateYtDlp(getApplication())
             _ytdlpVersion.value = Downloader.version(getApplication())
-            onDone(ok)
+            _ytdlpPhase.value = result.fold(
+                onSuccess = { status ->
+                    // المكتبة تُعيد UNCHANGED إن كان المثبَّت هو الأحدث أصلاً،
+                    // وهي حالةٌ ناجحةٌ لا فاشلة، والفرق بينهما يهمّ المستخدم.
+                    if (status.equals("UNCHANGED", ignoreCase = true)) ToolPhase.UpToDate
+                    else ToolPhase.Updated(_ytdlpVersion.value.orEmpty())
+                },
+                onFailure = { ToolPhase.Failed(it.message ?: it::class.java.simpleName) },
+            )
+            onDone(result.isSuccess)
         }
     }
+
+    fun dismissYtDlpPhase() { _ytdlpPhase.value = ToolPhase.Idle }
 
     // ── التحديث الذاتيّ ───────────────────────────────────────────────────────
     fun setAutoCheck(value: Boolean) = viewModelScope.launch { settings.setAutoCheckUpdates(value) }

@@ -134,4 +134,6 @@
     <string name="clip_to">To</string>
     <string name="clip_hint">Times as 0:30 or 1:05:20 or plain seconds. Cuts land on the nearest keyframe, so a second either way is normal.</string>
     <string name="clip_invalid">The end must come after the start.</string>
+    <string name="ytdlp_up_to_date">yt-dlp is already the latest available</string>
+    <string name="ytdlp_updated_to">yt-dlp updated to %1$s</string>
 </resources>
