@@ -87,13 +87,29 @@ jobs:
 
       - name: التحقّق من التوقيع
         run: |
+          # الصدفة تعمل بـ`-e`، وكانت النتيجة تُقاس بخرج `grep` في نهاية أنبوب.
+          # فإن سقط apksigner لم يُطبَع خرجُه أصلاً — ذهب إلى الأنبوب لا إلى السجلّ —
+          # ولم يُطبَع خطؤه، فتنتهي الخطوة بلا سبب ظاهر. صار الخرج يُلتقط ويُطبَع
+          # كاملاً، والحكم برمز خروج apksigner نفسه لا بمطابقة نصّ.
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          echo "أدوات البناء: $BT"
+          if [ ! -x "$BT/apksigner" ]; then
+            echo "apksigner غير موجود أو غير قابل للتنفيذ في $BT"
+            ls -la "$BT" | head -20
+            exit 1
+          fi
           shopt -s nullglob
           found=0
           for apk in app/build/outputs/apk/release/*.apk; do
             found=1
             echo "── $(basename "$apk")"
-            "$BT/apksigner" verify --print-certs "$apk" | grep -E 'Signer #1 certificate (DN|SHA-256)'
+            if out="$("$BT/apksigner" verify --print-certs "$apk" 2>&1)"; then
+              echo "$out" | grep -E 'Signer #1 certificate (DN|SHA-256)' || echo "$out"
+            else
+              echo "$out"
+              echo "فشل التحقّق من توقيع $(basename "$apk")"
+              exit 1
+            fi
           done
           [ "$found" = 1 ] || { echo "لم تُنتَج أيّ حزمة"; exit 1; }
 
