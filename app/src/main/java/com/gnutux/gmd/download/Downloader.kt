@@ -2,6 +2,7 @@ package com.gnutux.gmd.download
 
 import android.content.Context
 import android.os.Environment
+import com.gnutux.gmd.media.Trimmer
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.youtubedl_android.YoutubeDLResponse
@@ -288,36 +289,14 @@ object Downloader {
     }
 
     /**
-     * يقتصُّ المقطعَ من ملفٍّ منزَّلٍ بنسخِ التيّاراتِ بلا إعادةِ ترميز.
+     * يقتصُّ المقطعَ من ملفٍّ منزَّلٍ كاملاً.
      *
-     * ثنائيُّ ffmpeg تشحنُه المكتبةُ في `nativeLibraryDir` — وهو مسارٌ عامٌّ مستقرٌّ في
-     * أندرويد لا تخمينَ فيه — ويُتحقَّقُ من وجودِه قبلَ استعماله. ويُمرَّرُ الأمرُ
-     * مصفوفةَ وُسَطاءَ بلا صدفة، كسائرِ ما في البرنامج.
+     * والعملُ نفسُه يقعُ حينَ يقتصُّ المستخدمُ ملفّاً من جهازِه، فاستدعاءُ ffmpeg
+     * مشترَكٌ في [Trimmer] لا منسوخٌ هنا: علّةٌ في وُسَطائه تُصلَحُ مرّةً للمسلكَين.
      */
     private fun trim(context: Context, input: File, section: Section): File {
-        val ffmpeg = File(context.applicationInfo.nativeLibraryDir, FFMPEG_BIN)
-        if (!ffmpeg.canExecute()) {
-            error("this site refuses partial downloads and ffmpeg was not found to trim locally")
-        }
         val output = File(input.parentFile, "clip-${input.name}")
-        val process = ProcessBuilder(
-            listOf(
-                ffmpeg.absolutePath, "-y",
-                "-ss", section.startClock(),
-                "-to", section.endClock(),
-                "-i", input.absolutePath,
-                "-c", "copy",
-                output.absolutePath,
-            )
-        ).redirectErrorStream(true).start()
-
-        // الخرجُ يُستهلَكُ وإلّا امتلأت ذاكرةُ الأنبوبِ فتجمّدت العمليّة
-        val log = process.inputStream.bufferedReader().use { it.readText() }
-        val code = process.waitFor()
-        if (code != 0 || !output.isFile || output.length() == 0L) {
-            output.delete()
-            error("ffmpeg trim failed (exit $code)\n${log.takeLast(600)}")
-        }
+        Trimmer.cut(context, input, section, output)
         input.delete()
         return output
     }
@@ -338,9 +317,6 @@ object Downloader {
     suspend fun version(context: Context): String? = withContext(Dispatchers.IO) {
         runCatching { YoutubeDL.getInstance().version(context) }.getOrNull()
     }
-
-    /** اسمُ ثنائيِّ ffmpeg كما تشحنُه مكتبةُ youtubedl-android في jniLibs. */
-    private const val FFMPEG_BIN = "libffmpeg.so"
 
     /** يمنع رابطاً يبدأ بشَرطة من أن يُقرأ خياراً، ويقصّ الفراغ المحيط. */
     private fun sanitize(url: String): String = url.trim().removePrefix("-")

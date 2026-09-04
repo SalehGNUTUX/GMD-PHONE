@@ -69,6 +69,13 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- اقتصاص ملفّ من الجهاز: قد يسبقه نسخٌ لملفّ كبير فيطول، والعمل خارج
+             خدمة مقدِّمة يُجمَّد بمجرَّد أن تغادر الواجهةُ المقدّمة -->
+        <service
+            android:name=".media.TrimService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- تنزيل حزمة التحديث: خدمة مقدِّمة كي لا يموت في منتصفه حين يغادر
              المستخدم الواجهة، ويُستأنف من موضع الانقطاع لا من أوّله -->
         <service

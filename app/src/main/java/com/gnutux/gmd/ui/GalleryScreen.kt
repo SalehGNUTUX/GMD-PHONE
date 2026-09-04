@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun GalleryScreen() {
+fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -173,6 +173,12 @@ fun GalleryScreen() {
                         else R.string.gallery_select_all
                     ))
                 }
+                // القصُّ لمقطعٍ واحد: حدّانِ زمنيّانِ لا يصلحانِ لمقاطعَ مختلفةِ
+                // الطول، وهو القيدُ نفسُه الذي يمنعُ الاقتصاصَ في قائمةِ تشغيل
+                IconButton(
+                    enabled = chosen.size == 1,
+                    onClick = { chosen.firstOrNull()?.let(onTrim) },
+                ) { Icon(Icons.Filled.ContentCut, stringResource(R.string.menu_trim)) }
                 IconButton(
                     enabled = chosen.isNotEmpty(),
                     onClick = { runCatching { context.startActivity(MediaLibrary.shareIntent(chosen)) } },

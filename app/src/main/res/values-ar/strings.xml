@@ -152,4 +152,20 @@
     <string name="history_playlist_saved">حُفِظَ %1$d من %2$d</string>
     <string name="history_playlist_requested">طُلِبَ %1$d عنصراً</string>
     <string name="done_files">%1$d ملفّات</string>
+    <string name="menu_trim">اقتصاص ملفّ</string>
+    <string name="trim_title">اقتصاص ملفّ</string>
+    <string name="trim_pick_title">اختر المادّة</string>
+    <string name="trim_pick_hint">من مقاطع GMD أو من أيّ ملفّ في جهازك. والأصلُ لا يُمَسّ: الناتجُ ملفٌّ جديدٌ إلى جانبِه في المعرض.</string>
+    <string name="trim_from_gmd">من مقاطع GMD</string>
+    <string name="trim_from_device">من ملفّات الجهاز</string>
+    <string name="trim_change_source">غيّر</string>
+    <string name="trim_action">اقتصص</string>
+    <string name="trim_beyond_end">النهايةُ تتجاوزُ مدّةَ المادّة.</string>
+    <string name="trim_copying">نسخُ الملفّ… %1$d%%</string>
+    <string name="trim_cutting">الاقتصاص… %1$d%%</string>
+    <string name="trim_saving">الحفظُ في المعرض…</string>
+    <string name="notif_channel_trim">اقتصاص المقاطع</string>
+    <string name="notif_trimming">جارٍ الاقتصاص</string>
+    <string name="notif_trim_done">اكتملَ الاقتصاص</string>
+    <string name="notif_trim_failed">فشلَ الاقتصاص</string>
 </resources>

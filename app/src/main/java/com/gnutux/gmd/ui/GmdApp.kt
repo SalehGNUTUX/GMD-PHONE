@@ -33,8 +33,11 @@ import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.DownloadService
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Progress
+import com.gnutux.gmd.media.MediaEntry
+import com.gnutux.gmd.media.Trimmer
+import com.gnutux.gmd.media.TrimService
 
-enum class Screen { Menu, Video, Audio, Gallery, History, Info, Settings }
+enum class Screen { Menu, Video, Audio, Trim, Gallery, History, Info, Settings }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,6 +47,7 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
 
     val tools by AppClass.instance.tools.collectAsStateWithLifecycle()
     val progress by DownloadService.progress.collectAsStateWithLifecycle()
+    val trim by TrimService.progress.collectAsStateWithLifecycle()
     val update by vm.update.collectAsStateWithLifecycle()
 
     // رابطٌ وصل من ورقة المشاركة: يملأ الحقل ويقفز إلى شاشة الفيديو مباشرةً،
@@ -94,6 +98,7 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                             Screen.Menu -> stringResource(R.string.app_title)
                             Screen.Video -> stringResource(R.string.video_title)
                             Screen.Audio -> stringResource(R.string.audio_title)
+                            Screen.Trim -> stringResource(R.string.trim_title)
                             Screen.Gallery -> stringResource(R.string.gallery_title)
                             Screen.History -> stringResource(R.string.history_title)
                             Screen.Info -> stringResource(R.string.info_title)
@@ -153,7 +158,22 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                     vm, progress, isAudio = true, enabled = tools is ToolsState.Ready,
                     onOpenGallery = { screen = Screen.Gallery },
                 )
-                Screen.Gallery -> GalleryScreen()
+                Screen.Trim -> TrimScreen(vm, trim, onOpenGallery = { screen = Screen.Gallery })
+                Screen.Gallery -> GalleryScreen(onTrim = { entry: MediaEntry ->
+                    // القصُّ من المعرضِ يبدأُ بالمادّةِ في اليد، فلا يُسأَلُ المستخدمُ
+                    // عن ملفٍّ اختارَه لتوّه
+                    TrimService.reset()
+                    vm.setTrimSource(
+                        Trimmer.Source(
+                            uri = entry.uri,
+                            displayName = entry.name,
+                            isAudio = entry.isAudio,
+                            durationMs = entry.durationMs,
+                            sizeBytes = entry.sizeBytes,
+                        )
+                    )
+                    screen = Screen.Trim
+                })
                 Screen.History -> HistoryScreen(onRetry = { entry ->
                     // إعادةُ المحاولةِ بالجودةِ نفسِها: أنفعُ ما في السجلّ، فإغلاقُ
                     // بطاقةِ الخطأِ كان يُضيعُ الرابطَ وسببَ الفشلِ معاً.
@@ -237,6 +257,7 @@ private fun MenuScreen(onPick: (Screen) -> Unit) {
     val items = listOf(
         Item(Screen.Video, Icons.Filled.Movie, R.string.menu_video),
         Item(Screen.Audio, Icons.Filled.MusicNote, R.string.menu_audio),
+        Item(Screen.Trim, Icons.Filled.ContentCut, R.string.menu_trim),
         Item(Screen.Gallery, Icons.Filled.PhotoLibrary, R.string.menu_gallery),
         Item(Screen.History, Icons.Filled.History, R.string.menu_history),
         Item(Screen.Info, Icons.Filled.Info, R.string.menu_info),

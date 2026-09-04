@@ -10,6 +10,7 @@ import com.gnutux.gmd.download.MediaInfo
 import com.gnutux.gmd.download.PlaylistInfo
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Section
+import com.gnutux.gmd.media.Trimmer
 import com.gnutux.gmd.GmdApp
 import com.gnutux.gmd.ToolsState
 import com.gnutux.gmd.update.UpdateDownload
@@ -111,6 +112,21 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
     private fun formatClock(t: Int): String =
         if (t >= 3600) "%d:%02d:%02d".format(t / 3600, (t % 3600) / 60, t % 60)
         else "%d:%02d".format(t / 60, t % 60)
+
+    // ── اقتصاصُ ملفٍّ من الجهاز ────────────────────────────────────────────────
+    // حالةٌ مستقلّةٌ عن حقولِ الاقتصاصِ عندَ التنزيل: الشاشتانِ تعملانِ على مادّتَين
+    // مختلفتَين، وخلطُهما يجعلُ اختيارَ ملفٍّ يُبدِّلُ حدَّي رابطٍ قيدَ التنزيل.
+    private val _trimSource = MutableStateFlow<Trimmer.Source?>(null)
+    val trimSource: StateFlow<Trimmer.Source?> = _trimSource
+    val trimStart = MutableStateFlow("")
+    val trimEnd = MutableStateFlow("")
+
+    /** يُبدِّل مادّةَ الاقتصاص، ويُصفّر الحدَّين فلا يبقى حدُّ ملفٍّ على ملفٍّ آخر. */
+    fun setTrimSource(source: Trimmer.Source?) {
+        _trimSource.value = source
+        trimStart.value = ""
+        trimEnd.value = ""
+    }
 
     private val _info = MutableStateFlow<MediaInfo?>(null)
     val info: StateFlow<MediaInfo?> = _info
