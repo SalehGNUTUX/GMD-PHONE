@@ -5,17 +5,20 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gnutux.gmd.data.Settings
 import com.gnutux.gmd.download.AudioFormat
+import com.gnutux.gmd.download.DownloadService
+import com.gnutux.gmd.download.JobInfo
 import com.gnutux.gmd.download.Downloader
 import com.gnutux.gmd.download.MediaInfo
 import com.gnutux.gmd.download.PlaylistInfo
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Section
-import com.gnutux.gmd.media.Trimmer
 import com.gnutux.gmd.GmdApp
 import com.gnutux.gmd.ToolsState
+import com.gnutux.gmd.media.Trimmer
 import com.gnutux.gmd.update.UpdateDownload
 import com.gnutux.gmd.update.UpdateService
 import com.gnutux.gmd.update.Updater
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.Job
@@ -43,30 +46,43 @@ sealed interface UpdatePhase {
     data class Error(val message: String) : UpdatePhase
 }
 
-class GmdViewModel(app: Application) : AndroidViewModel(app) {
-
-    private val settings = Settings(app)
-
-    init {
-        // حالةُ التنزيل تُملَى من الخدمة لا من هنا، فهي التي تبقى حيّةً بعد
-        // مغادرة الواجهة، وإليها يعود المستخدمُ فيجد التقدُّم كما تركه.
-        viewModelScope.launch {
-            UpdateService.state.collect { s ->
-                when (s) {
-                    is UpdateDownload.Running -> _update.value =
-                        UpdatePhase.Downloading(s.received, s.total)
-                    is UpdateDownload.Done -> _update.value = UpdatePhase.Downloaded(s.file)
-                    is UpdateDownload.Failed -> _update.value = UpdatePhase.Error(s.message)
-                    UpdateDownload.Idle -> Unit
-                }
-            }
-        }
+/** يقبل ثوانيَ مجرّدة، أو m:ss، أو h:mm:ss. ويُعيد null إن لم يصحّ. */
+fun parseClock(text: String): Int? {
+    val t = text.trim()
+    if (t.isEmpty()) return null
+    val parts = t.split(":")
+    if (parts.size > 3) return null
+    var total = 0
+    for (p in parts) {
+        val n = p.trim().toIntOrNull() ?: return null
+        if (n < 0) return null
+        total = total * 60 + n
     }
+    return total
+}
 
-    var url = MutableStateFlow("")
-        private set
+private fun formatClock(t: Int): String =
+    if (t >= 3600) "%d:%02d:%02d".format(t / 3600, (t % 3600) / 60, t % 60)
+    else "%d:%02d".format(t / 60, t % 60)
+
+/**
+ * حالةُ قسمٍ واحدٍ من قسمَي التنزيل: رابطُه ومعلوماتُه وقائمتُه وخياراتُه.
+ *
+ * كانت هذه الحقولُ في نموذجِ العرضِ مرّةً واحدةً يتقاسمُها القسمان، فيرى المستخدمُ
+ * في قسمِ الفيديو رابطَ الصوتِ وقائمتَه وتقدُّمَه، ولا يستطيعُ أن يُنزّلَ في أحدِهما
+ * وهو يعملُ في الآخر. والقسمانِ عملانِ مستقلّانِ فحالتاهما مستقلّتان.
+ */
+class SectionState(
+    private val application: Application,
+    private val scope: CoroutineScope,
+    val isAudio: Boolean,
+) {
+    val url = MutableStateFlow("")
     val quality = MutableStateFlow(Quality.P1080)
     val audioFormat = MutableStateFlow(AudioFormat.MP3)
+
+    /** ما يُمرَّرُ للخدمةِ ويُحفَظُ في السجلّ: صيغةُ الصوتِ أو جودةُ الفيديو. */
+    fun choice(): String = if (isAudio) audioFormat.value.name else quality.value.name
 
     // ── الاقتصاص ──────────────────────────────────────────────────────────────
     // النصُّ يبقى كما يكتبه المستخدم ويُحلَّل عند الطلب، فتحويله رقماً مع كلِّ حرفٍ
@@ -74,21 +90,6 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
     val clipEnabled = MutableStateFlow(false)
     val clipStart = MutableStateFlow("")
     val clipEnd = MutableStateFlow("")
-
-    /** يقبل ثوانيَ مجرّدة، أو m:ss، أو h:mm:ss. ويُعيد null إن لم يصحّ. */
-    fun parseClock(text: String): Int? {
-        val t = text.trim()
-        if (t.isEmpty()) return null
-        val parts = t.split(":")
-        if (parts.size > 3) return null
-        var total = 0
-        for (p in parts) {
-            val n = p.trim().toIntOrNull() ?: return null
-            if (n < 0) return null
-            total = total * 60 + n
-        }
-        return total
-    }
 
     /** المقطع المطلوب، أو null إن كان الاقتصاص مطفأً أو حدّاه غير صالحين. */
     fun section(): Section? {
@@ -109,32 +110,15 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         clipEnd.value = formatClock(end)
     }
 
-    private fun formatClock(t: Int): String =
-        if (t >= 3600) "%d:%02d:%02d".format(t / 3600, (t % 3600) / 60, t % 60)
-        else "%d:%02d".format(t / 60, t % 60)
-
-    // ── اقتصاصُ ملفٍّ من الجهاز ────────────────────────────────────────────────
-    // حالةٌ مستقلّةٌ عن حقولِ الاقتصاصِ عندَ التنزيل: الشاشتانِ تعملانِ على مادّتَين
-    // مختلفتَين، وخلطُهما يجعلُ اختيارَ ملفٍّ يُبدِّلُ حدَّي رابطٍ قيدَ التنزيل.
-    private val _trimSource = MutableStateFlow<Trimmer.Source?>(null)
-    val trimSource: StateFlow<Trimmer.Source?> = _trimSource
-    val trimStart = MutableStateFlow("")
-    val trimEnd = MutableStateFlow("")
-
-    /** يُبدِّل مادّةَ الاقتصاص، ويُصفّر الحدَّين فلا يبقى حدُّ ملفٍّ على ملفٍّ آخر. */
-    fun setTrimSource(source: Trimmer.Source?) {
-        _trimSource.value = source
-        trimStart.value = ""
-        trimEnd.value = ""
-    }
-
     private val _info = MutableStateFlow<MediaInfo?>(null)
     val info: StateFlow<MediaInfo?> = _info
 
     private val _infoLoading = MutableStateFlow(false)
     val infoLoading: StateFlow<Boolean> = _infoLoading
 
-    // ── قائمة التشغيل ─────────────────────────────────────────────────────────
+    private val _infoError = MutableStateFlow<String?>(null)
+    val infoError: StateFlow<String?> = _infoError
+
     private val _playlist = MutableStateFlow<PlaylistInfo?>(null)
     val playlist: StateFlow<PlaylistInfo?> = _playlist
 
@@ -150,18 +134,6 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         val all = _playlist.value?.entries?.map { it.index }?.toSet().orEmpty()
         playlistSelection.value = if (playlistSelection.value.size == all.size) emptySet() else all
     }
-
-    private val _infoError = MutableStateFlow<String?>(null)
-    val infoError: StateFlow<String?> = _infoError
-
-    private val _ytdlpVersion = MutableStateFlow<String?>(null)
-    val ytdlpVersion: StateFlow<String?> = _ytdlpVersion
-
-    private val _update = MutableStateFlow<UpdatePhase>(UpdatePhase.Idle)
-    val update: StateFlow<UpdatePhase> = _update
-
-    val autoCheckUpdates = settings.autoCheckUpdates
-    val allowPrerelease = settings.allowPrerelease
 
     private var autoInfoJob: Job? = null
 
@@ -184,7 +156,7 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         val target = value.trim()
         if (!target.startsWith("http")) return
 
-        autoInfoJob = viewModelScope.launch {
+        autoInfoJob = scope.launch {
             delay(AUTO_INFO_DELAY_MS)
             // الأدواتُ قد تكونُ ما تزالُ تُهيَّأُ عندَ أوّلِ تشغيل
             if (GmdApp.instance.tools.value !is ToolsState.Ready) return@launch
@@ -205,10 +177,35 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * يستعيدُ قسماً تركَه المستخدمُ يعملُ ثمّ أغلقَ التطبيق.
+     *
+     * ولا يُطلَقُ الجلبُ التلقائيُّ هنا: التنزيلُ جارٍ فعلاً، وسؤالُ yt-dlp عن رابطٍ
+     * يُنزَّلُ الآنَ إنفاقٌ للشبكةِ على ما لا يُنتظَر. لكنّ القائمةَ تُجلَبُ إن كانت
+     * المهمّةُ قائمةَ تشغيل، فبلا عناصرِها لا يُرى ما تمَّ منها.
+     */
+    fun restore(info: JobInfo) {
+        if (url.value.isNotBlank()) return
+        url.value = info.url
+        runCatching {
+            if (isAudio) audioFormat.value = AudioFormat.valueOf(info.choice)
+            else quality.value = Quality.valueOf(info.choice)
+        }
+        setSection(info.sectionStart, info.sectionEnd)
+        if (info.playlistItems.isNotEmpty()) {
+            playlistSelection.value = info.playlistItems.toSet()
+            autoInfoJob?.cancel()
+            autoInfoJob = scope.launch {
+                if (GmdApp.instance.tools.value !is ToolsState.Ready) return@launch
+                _playlist.value = Downloader.fetchPlaylist(info.url)
+            }
+        }
+    }
+
     fun loadInfo() {
         val target = url.value.trim()
         if (target.isEmpty()) return
-        viewModelScope.launch {
+        scope.launch {
             _infoLoading.value = true
             _infoError.value = null
             Downloader.fetchInfo(target).fold(
@@ -218,6 +215,79 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
             _infoLoading.value = false
         }
     }
+
+    private companion object {
+        /** مهلةُ الهدوءِ قبلَ سؤالِ yt-dlp عن رابطٍ يُكتَبُ حرفاً حرفاً. */
+        const val AUTO_INFO_DELAY_MS = 700L
+    }
+}
+
+class GmdViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val settings = Settings(app)
+
+    /** قسمانِ مستقلّانِ يعملانِ معاً: رابطٌ هنا وآخرُ هناك، وتنزيلانِ متوازيان. */
+    val video = SectionState(app, viewModelScope, isAudio = false)
+    val audio = SectionState(app, viewModelScope, isAudio = true)
+
+    /** شاشةُ «معلومات الوسائط» ترابطُها الخاصّ: سؤالٌ لا يُبدِّلُ تنزيلاً جارياً. */
+    val probe = SectionState(app, viewModelScope, isAudio = false)
+
+    fun section(isAudio: Boolean): SectionState = if (isAudio) audio else video
+
+    init {
+        // حالةُ التنزيل تُملَى من الخدمة لا من هنا، فهي التي تبقى حيّةً بعد
+        // مغادرة الواجهة، وإليها يعود المستخدمُ فيجد التقدُّم كما تركه.
+        viewModelScope.launch {
+            UpdateService.state.collect { s ->
+                when (s) {
+                    is UpdateDownload.Running -> _update.value =
+                        UpdatePhase.Downloading(s.received, s.total)
+                    is UpdateDownload.Done -> _update.value = UpdatePhase.Downloaded(s.file)
+                    is UpdateDownload.Failed -> _update.value = UpdatePhase.Error(s.message)
+                    UpdateDownload.Idle -> Unit
+                }
+            }
+        }
+    }
+
+    /**
+     * يُعيدُ إلى الشاشةِ ما كانَ يعملُ حينَ أُغلِقَ التطبيق.
+     *
+     * الخدمةُ تبقى حيّةً بإشعارِها بينما تُهدَمُ الشاشةُ ونموذجُها معها، فكانَ
+     * المستخدمُ يعودُ إلى حقلٍ فارغٍ وشريطٍ ساكنٍ والتنزيلُ يجري في الخلفيّة.
+     */
+    fun restoreRunningJobs() {
+        DownloadService.jobs.value.forEach { (kind, info) ->
+            section(kind == Downloader.Kind.AUDIO).restore(info)
+        }
+    }
+
+    fun parseClock(text: String): Int? = com.gnutux.gmd.ui.parseClock(text)
+
+    // ── اقتصاصُ ملفٍّ من الجهاز ────────────────────────────────────────────────
+    // حالةٌ مستقلّةٌ عن حقولِ الاقتصاصِ عندَ التنزيل: الشاشتانِ تعملانِ على مادّتَين
+    // مختلفتَين، وخلطُهما يجعلُ اختيارَ ملفٍّ يُبدِّلُ حدَّي رابطٍ قيدَ التنزيل.
+    private val _trimSource = MutableStateFlow<Trimmer.Source?>(null)
+    val trimSource: StateFlow<Trimmer.Source?> = _trimSource
+    val trimStart = MutableStateFlow("")
+    val trimEnd = MutableStateFlow("")
+
+    /** يُبدِّل مادّةَ الاقتصاص، ويُصفّر الحدَّين فلا يبقى حدُّ ملفٍّ على ملفٍّ آخر. */
+    fun setTrimSource(source: Trimmer.Source?) {
+        _trimSource.value = source
+        trimStart.value = ""
+        trimEnd.value = ""
+    }
+
+    private val _ytdlpVersion = MutableStateFlow<String?>(null)
+    val ytdlpVersion: StateFlow<String?> = _ytdlpVersion
+
+    private val _update = MutableStateFlow<UpdatePhase>(UpdatePhase.Idle)
+    val update: StateFlow<UpdatePhase> = _update
+
+    val autoCheckUpdates = settings.autoCheckUpdates
+    val allowPrerelease = settings.allowPrerelease
 
     fun loadYtDlpVersion() {
         viewModelScope.launch { _ytdlpVersion.value = Downloader.version(getApplication()) }
@@ -253,7 +323,7 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissYtDlpPhase() { _ytdlpPhase.value = ToolPhase.Idle }
 
-    // ── التحديث الذاتيّ ───────────────────────────────────────────────────────
+    // ── التحديثُ الذاتيّ ───────────────────────────────────────────────────────
     fun setAutoCheck(value: Boolean) = viewModelScope.launch { settings.setAutoCheckUpdates(value) }
     fun setAllowPrerelease(value: Boolean) = viewModelScope.launch { settings.setAllowPrerelease(value) }
 
@@ -300,9 +370,4 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         _update.value = UpdatePhase.Idle
     }
     fun dismissUpdate() { _update.value = UpdatePhase.Idle }
-
-    private companion object {
-        /** مهلةُ الهدوءِ قبلَ سؤالِ yt-dlp عن رابطٍ يُكتَبُ حرفاً حرفاً. */
-        const val AUTO_INFO_DELAY_MS = 700L
-    }
 }

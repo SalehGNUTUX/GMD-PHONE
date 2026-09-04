@@ -168,4 +168,15 @@
     <string name="notif_trimming">جارٍ الاقتصاص</string>
     <string name="notif_trim_done">اكتملَ الاقتصاص</string>
     <string name="notif_trim_failed">فشلَ الاقتصاص</string>
+    <string name="phase_downloading">جارٍ التنزيل</string>
+    <string name="phase_converting">جارٍ التحويل</string>
+    <string name="phase_merging">جارٍ تجميع الصوت والصورة</string>
+    <string name="phase_saving">جارٍ الحفظ في المعرض</string>
+    <string name="phase_item">العنصر %1$d من %2$d</string>
+    <string name="notif_downloading_n">جارٍ تنزيل %1$d مهامّ</string>
+    <string name="notif_stop_all">أوقف الكلّ</string>
+    <string name="gallery_videos">المرئيّات</string>
+    <string name="gallery_audios">الصوتيّات</string>
+    <string name="gallery_playlists">قوائم التشغيل</string>
+    <string name="gallery_singles">ملفّات مفردة</string>
 </resources>

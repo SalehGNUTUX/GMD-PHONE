@@ -31,6 +31,7 @@ import com.gnutux.gmd.R
 import com.gnutux.gmd.ToolsState
 import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.DownloadService
+import com.gnutux.gmd.download.Downloader
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Progress
 import com.gnutux.gmd.media.MediaEntry
@@ -46,6 +47,7 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
     var screen by rememberSaveable { mutableStateOf(Screen.Menu) }
 
     val tools by AppClass.instance.tools.collectAsStateWithLifecycle()
+    // حالةُ كلِّ قسمٍ على حدة: تنزيلانِ قد يجريانِ معاً
     val progress by DownloadService.progress.collectAsStateWithLifecycle()
     val trim by TrimService.progress.collectAsStateWithLifecycle()
     val update by vm.update.collectAsStateWithLifecycle()
@@ -54,13 +56,18 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
     // فالمستخدم شارك الرابط ليُنزّله لا ليعيد لصقه.
     LaunchedEffect(incomingUrl) {
         incomingUrl?.let {
-            vm.setUrl(it)
+            vm.video.setUrl(it)
             screen = Screen.Video
             onUrlConsumed()
         }
     }
 
     LaunchedEffect(Unit) { vm.checkForUpdatesOnLaunch() }
+
+    // ما كانَ يعملُ حينَ أُغلِقَ التطبيقُ يعودُ إلى شاشتِه: الخدمةُ تبقى حيّةً
+    // بإشعارِها بينما تُهدَمُ الشاشةُ ونموذجُها، فكانَ المستخدمُ يعودُ إلى حقلٍ
+    // فارغٍ وشريطٍ ساكنٍ والتنزيلُ يجري
+    LaunchedEffect(Unit) { vm.restoreRunningJobs() }
 
     var confirmExit by remember { mutableStateOf(false) }
 
@@ -151,11 +158,13 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
             when (screen) {
                 Screen.Menu -> MenuScreen(onPick = { screen = it })
                 Screen.Video -> DownloadScreen(
-                    vm, progress, isAudio = false, enabled = tools is ToolsState.Ready,
+                    vm, progress[Downloader.Kind.VIDEO] ?: Progress.Idle,
+                    isAudio = false, enabled = tools is ToolsState.Ready,
                     onOpenGallery = { screen = Screen.Gallery },
                 )
                 Screen.Audio -> DownloadScreen(
-                    vm, progress, isAudio = true, enabled = tools is ToolsState.Ready,
+                    vm, progress[Downloader.Kind.AUDIO] ?: Progress.Idle,
+                    isAudio = true, enabled = tools is ToolsState.Ready,
                     onOpenGallery = { screen = Screen.Gallery },
                 )
                 Screen.Trim -> TrimScreen(vm, trim, onOpenGallery = { screen = Screen.Gallery })
@@ -177,16 +186,18 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                 Screen.History -> HistoryScreen(onRetry = { entry ->
                     // إعادةُ المحاولةِ بالجودةِ نفسِها: أنفعُ ما في السجلّ، فإغلاقُ
                     // بطاقةِ الخطأِ كان يُضيعُ الرابطَ وسببَ الفشلِ معاً.
-                    vm.setUrl(entry.url)
-                    vm.setSection(entry.sectionStart, entry.sectionEnd)
+                    val st = vm.section(entry.isAudio)
+                    st.setUrl(entry.url)
+                    st.setSection(entry.sectionStart, entry.sectionEnd)
                     if (entry.isAudio) {
-                        runCatching { vm.audioFormat.value = AudioFormat.valueOf(entry.choice) }
+                        runCatching { st.audioFormat.value = AudioFormat.valueOf(entry.choice) }
                         screen = Screen.Audio
                     } else {
-                        runCatching { vm.quality.value = Quality.valueOf(entry.choice) }
+                        runCatching { st.quality.value = Quality.valueOf(entry.choice) }
                         screen = Screen.Video
                     }
-                    DownloadService.reset()
+                    DownloadService.reset(if (entry.isAudio) Downloader.Kind.AUDIO
+                                          else Downloader.Kind.VIDEO)
                 })
                 Screen.Info -> InfoScreen(vm, enabled = tools is ToolsState.Ready)
                 Screen.Settings -> SettingsScreen(vm)

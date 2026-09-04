@@ -56,8 +56,13 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmDelete by remember { mutableStateOf(false) }
     var hasRead by remember { mutableStateOf(MediaLibrary.hasReadPermission(context)) }
-    /** المجلَّد المفتوح: قائمةُ تشغيلٍ يُتصفَّح داخلُها، أو `null` للجذر. */
-    var openFolder by remember { mutableStateOf<String?>(null) }
+    /**
+     * المجلَّد المفتوح: قائمةُ تشغيلٍ يُتصفَّح داخلُها، أو `null` للجذر.
+     *
+     * ويحملُ نوعَه معه: `Movies/GMD/رحلة` و`Music/GMD/رحلة` مجلَّدانِ مختلفانِ
+     * يتشابهُ اسماهما، ففتحُ أحدِهما بالاسمِ وحدَه يخلطُ عناصرَهما.
+     */
+    var openFolder by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
 
     val deletedLabel = stringResource(R.string.gallery_deleted)
     val noAppLabel = stringResource(R.string.gallery_no_player)
@@ -116,20 +121,27 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
 
     val all = items
     // في الجذر تُعرَض الملفّاتُ المفردة، وداخلَ مجلَّدٍ تُعرَض عناصرُه وحدَها
-    val list = all?.filter { it.folder == openFolder }
+    val open = openFolder
+    val list = all?.filter {
+        if (open == null) it.folder == null
+        else it.folder == open.first && it.isAudio == open.second
+    }
+    // المجلَّداتُ تُجمَّعُ على الاسمِ **والنوعِ** معاً
     val folders = remember(all) {
         all.orEmpty().filter { it.folder != null }
-            .groupBy { it.folder!! }
+            .groupBy { it.folder!! to it.isAudio }
             .toList()
             .sortedByDescending { (_, v) -> v.maxOf { it.addedSeconds } }
     }
+    val videoFolders = folders.filter { !it.first.second }
+    val audioFolders = folders.filter { it.first.second }
     val chosen = list.orEmpty().filter { it.uri.toString() in selected }
 
     // زرُّ الرجوع يُغلق المجلَّد قبل أن يعود إلى القائمة: هذا المستوى أعمقُ من
     // الشاشة، فيجب أن يُستهلَك هنا لا هناك.
-    BackHandler(enabled = openFolder != null) { openFolder = null; selected = emptySet() }
+    BackHandler(enabled = open != null) { openFolder = null; selected = emptySet() }
 
-    if (openFolder != null) {
+    if (open != null) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -138,8 +150,11 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
             IconButton(onClick = { openFolder = null; selected = emptySet() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
             }
-            Icon(Icons.Filled.PlaylistPlay, null, tint = MaterialTheme.colorScheme.primary)
-            Text(openFolder!!, style = MaterialTheme.typography.titleSmall,
+            Icon(
+                if (open.second) Icons.Filled.MusicNote else Icons.Filled.PlaylistPlay, null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(open.first, style = MaterialTheme.typography.titleSmall,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -155,7 +170,7 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
             ) {
                 Text(
                     if (selected.isEmpty()) {
-                        if (openFolder == null && folders.isNotEmpty())
+                        if (open == null && folders.isNotEmpty())
                             stringResource(R.string.gallery_count_with_folders,
                                 list.size, folders.size)
                         else stringResource(R.string.gallery_count, list.size)
@@ -220,31 +235,54 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
             }
 
             else -> {
-                if (openFolder == null && folders.isNotEmpty()) {
-                    folders.forEach { (name, entries) ->
-                        FolderCard(name, entries) { openFolder = name; selected = emptySet() }
-                    }
-                    if (list.isNotEmpty()) HorizontalDivider()
+                // صفٌّ واحدٌ من المقاطع، يُستعمَل في القسمَين وداخلَ المجلَّد
+                val row: @Composable (MediaEntry) -> Unit = { entry ->
+                    val key = entry.uri.toString()
+                    val isSelected = key in selected
+                    EntryRow(
+                        entry = entry,
+                        selected = isSelected,
+                        selecting = selected.isNotEmpty(),
+                        onClick = {
+                            if (selected.isNotEmpty()) {
+                                selected = if (isSelected) selected - key else selected + key
+                            } else {
+                                val ok = runCatching {
+                                    context.startActivity(MediaLibrary.viewIntent(entry)); true
+                                }.getOrDefault(false)
+                                if (!ok) Toast.makeText(context, noAppLabel, Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onLongClick = { selected = if (isSelected) selected - key else selected + key },
+                    )
                 }
-                list.forEach { entry ->
-                val key = entry.uri.toString()
-                val isSelected = key in selected
-                EntryRow(
-                    entry = entry,
-                    selected = isSelected,
-                    selecting = selected.isNotEmpty(),
-                    onClick = {
-                        if (selected.isNotEmpty()) {
-                            selected = if (isSelected) selected - key else selected + key
-                        } else {
-                            val ok = runCatching {
-                                context.startActivity(MediaLibrary.viewIntent(entry)); true
-                            }.getOrDefault(false)
-                            if (!ok) Toast.makeText(context, noAppLabel, Toast.LENGTH_SHORT).show()
+
+                if (open != null) {
+                    list.forEach { row(it) }
+                } else {
+                    // في الجذرِ قسمانِ: المرئيّاتُ والصوتيّات، وفي كلٍّ منهما قوائمُ
+                    // تشغيلِه وملفّاتُه المفردة. وكانَ الكلُّ مُلقًى في قائمةٍ واحدةٍ
+                    // فيضيعُ مقطعٌ صوتيٌّ بينَ عشراتِ المرئيّات.
+                    val videos = list.filter { !it.isAudio }
+                    val audios = list.filter { it.isAudio }
+                    if (videoFolders.isNotEmpty() || videos.isNotEmpty()) {
+                        GroupHeader(R.string.gallery_videos, Icons.Filled.Movie)
+                        videoFolders.forEach { (key, entries) ->
+                            FolderCard(key.first, entries) {
+                                openFolder = key; selected = emptySet()
+                            }
                         }
-                    },
-                    onLongClick = { selected = if (isSelected) selected - key else selected + key },
-                )
+                        videos.forEach { row(it) }
+                    }
+                    if (audioFolders.isNotEmpty() || audios.isNotEmpty()) {
+                        GroupHeader(R.string.gallery_audios, Icons.Filled.MusicNote)
+                        audioFolders.forEach { (key, entries) ->
+                            FolderCard(key.first, entries) {
+                                openFolder = key; selected = emptySet()
+                            }
+                        }
+                        audios.forEach { row(it) }
+                    }
                 }
             }
         }
@@ -290,6 +328,20 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
                 }
             },
         )
+    }
+}
+
+/** عنوانُ قسمٍ في المعرض: المرئيّاتُ أو الصوتيّات. */
+@Composable
+private fun GroupHeader(label: Int, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+        Text(stringResource(label), style = MaterialTheme.typography.titleSmall)
+        HorizontalDivider(Modifier.weight(1f))
     }
 }
 

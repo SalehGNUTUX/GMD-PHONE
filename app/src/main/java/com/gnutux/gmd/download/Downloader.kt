@@ -125,9 +125,51 @@ data class MediaInfo(
  */
 object Downloader {
 
-    /** مجلَّد عملٍ خاصّ بالتطبيق؛ النقل إلى معرض الوسائط يجري بعد الاكتمال. */
-    fun stagingDir(context: Context): File =
-        File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "staging").apply { mkdirs() }
+    /**
+     * مجلَّد عملٍ خاصّ بالتطبيق؛ النقل إلى معرض الوسائط يجري بعد الاكتمال.
+     *
+     * ولكلِّ مهمّةٍ مجلَّدُها: كانَ المجلَّدُ واحداً يُمسَحُ في مطلعِ كلِّ تنزيل، فلو
+     * جرى تنزيلان معاً محا أحدُهما ما نزّلَه الآخرُ لتوِّه.
+     */
+    fun stagingDir(context: Context, name: String = "video"): File =
+        File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "staging/$name")
+            .apply { mkdirs() }
+
+    /** نوعُ المهمّة: قسمانِ مستقلّانِ في الواجهةِ يعملانِ معاً. */
+    enum class Kind { VIDEO, AUDIO }
+
+    val Job.kind: Kind get() = if (this is Job.Audio) Kind.AUDIO else Kind.VIDEO
+
+    /**
+     * ما يجري الآنَ فعلاً، لا نسبةٌ مجرّدةٌ لا يُدرى ممَّ هي.
+     *
+     * التنزيلُ ليس كلَّ العمل: يعقبُه استخراجُ صوتٍ أو تجميعُ تيّارَين ثمّ نقلٌ إلى
+     * المعرض. وكانَ الشريطُ يقفُ عندَ 100٪ في هذه المراحلِ بلا كلمة، فيظنُّ
+     * المستخدمُ أنّ البرنامجَ تجمّدَ وقد يُلغي عملاً كادَ يتمّ.
+     */
+    enum class Phase { DOWNLOADING, CONVERTING, MERGING, SAVING }
+
+    /**
+     * يقرأُ سطرَ yt-dlp فيعرفُ المرحلةَ وموضعَ العنصرِ من القائمة.
+     *
+     * والقراءةُ من الخرجِ لا من المكتبة: نداءُ التقدُّمِ لا يُعطي إلّا نسبةً ومدّةً
+     * متبقّية، وهما يخصّانِ التنزيلَ وحدَه ويجمُدانِ فيما بعدَه.
+     */
+    object Watch {
+        private val ITEM = Regex("""Downloading (?:item|video) (\d+) of (\d+)""")
+
+        fun phaseOf(line: String): Phase? = when {
+            line.contains("[ExtractAudio]") -> Phase.CONVERTING
+            line.contains("[Merger]") -> Phase.MERGING
+            line.contains("[VideoConvertor]") || line.contains("[Fixup") -> Phase.CONVERTING
+            line.contains("[download]") -> Phase.DOWNLOADING
+            else -> null
+        }
+
+        /** رقمُ العنصرِ الجاري وعدَدُ القائمةِ كما يُعلنُهما yt-dlp. */
+        fun itemOf(line: String): Pair<Int, Int>? =
+            ITEM.find(line)?.destructured?.let { (i, n) -> i.toInt() to n.toInt() }
+    }
 
     suspend fun fetchInfo(url: String): Result<MediaInfo> = withContext(Dispatchers.IO) {
         runCatching {
@@ -194,8 +236,9 @@ object Downloader {
         onProgress: (percent: Float, etaSeconds: Long, line: String) -> Unit,
     ): Result<List<File>> = withContext(Dispatchers.IO) {
         runCatching {
-            val out = stagingDir(context)
+            val out = stagingDir(context, if (job is Job.Audio) "audio" else "video")
             out.listFiles()?.forEach { it.delete() }   // بقايا محاولةٍ سابقة
+            val failure = Failure()
 
             // الاقتصاصُ لا معنى له في قائمةِ تشغيل: حدٌّ زمنيٌّ واحدٌ لا يصلح
             // لمقاطعَ مختلفةِ الطول
@@ -203,7 +246,7 @@ object Downloader {
 
             // المسلك الأوّل: نطلب من الخادم الجزءَ وحدَه فلا يُنزَّل ما لا يُراد،
             // وهو على الهاتف توفيرٌ حقيقيّ في البيانات والوقت معاً.
-            val first = attempt(context, job, section, processId, out, onProgress)
+            val first = attempt(context, job, section, processId, out, failure, onProgress)
             if (first.isNotEmpty()) {
                 return@runCatching if (section != null) listOf(trim(context, first.first(), section))
                 else first
@@ -212,17 +255,22 @@ object Downloader {
             // ويرفض بعضُ المواقع — يوتيوب منها — أن يجلب ffmpeg نطاقاً من روابطها
             // فيردّ 403. فإن كان القصُّ مطلوباً وسقط، نزّلنا المادّة كاملةً ثمّ
             // اقتصصناها هنا. أبطأُ وأكثرُ بيانات، لكنّه ينجح حيث يفشل الأوّل.
-            if (section == null) error(lastError ?: "no output file was produced")
+            if (section == null) error(failure.message ?: "no output file was produced")
 
             out.listFiles()?.forEach { it.delete() }
-            val whole = attempt(context, job, null, processId, out, onProgress)
-                .firstOrNull() ?: error(lastError ?: "no output file was produced")
+            val whole = attempt(context, job, null, processId, out, failure, onProgress)
+                .firstOrNull() ?: error(failure.message ?: "no output file was produced")
             listOf(trim(context, whole, section))
         }
     }
 
-    /** آخرُ خطأٍ من محاولةٍ داخليّة، ليُبلَّغ عنه بدل رسالةٍ عامّة. */
-    @Volatile private var lastError: String? = null
+    /**
+     * خطأُ آخرِ محاولةٍ داخليّة، ليُبلَّغَ عنه بدلَ رسالةٍ عامّة.
+     *
+     * وهو صندوقٌ لكلِّ مهمّةٍ لا حقلٌ في الكائنِ المفرد: مهمّتانِ تجريانِ معاً كانتا
+     * تتشاركانِ حقلاً واحداً، فيُنسَبُ خطأُ إحداهما إلى الأخرى.
+     */
+    private class Failure { @Volatile var message: String? = null }
 
     /** محاولةُ تنزيلٍ واحدة؛ تُعيد الملفّاتِ الناتجةَ أو قائمةً فارغةً إن فشلت. */
     private fun attempt(
@@ -231,6 +279,7 @@ object Downloader {
         section: Section?,
         processId: String,
         out: File,
+        failure: Failure,
         onProgress: (Float, Long, String) -> Unit,
     ): List<File> {
         val request = YoutubeDLRequest(sanitize(job.url)).apply {
@@ -277,13 +326,13 @@ object Downloader {
             // وفي قائمةِ التشغيل يُمرَّر `--ignore-errors` فيخرج برمزٍ غيرِ صفرٍ وقد
             // نجح بعضُها، فما نزل يُحفَظ ولا يُهدَر لأجل ما سقط.
             if (response.exitCode != 0 && produced.isEmpty()) {
-                lastError = "yt-dlp exited with ${response.exitCode}"
+                failure.message = "yt-dlp exited with ${response.exitCode}"
                 return emptyList()
             }
-            if (produced.isEmpty()) lastError = "no output file was produced"
+            if (produced.isEmpty()) failure.message = "no output file was produced"
             produced
         } catch (e: Throwable) {
-            lastError = e.message ?: e::class.java.name
+            failure.message = e.message ?: e::class.java.name
             emptyList()
         }
     }

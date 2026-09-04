@@ -116,7 +116,9 @@ object Trimmer {
         runCatching {
             require(section.valid) { "invalid section" }
 
-            val staging = Downloader.stagingDir(context)
+            // مجلَّدٌ خاصٌّ بالقصّ: تنزيلٌ جارٍ في القسمِ الآخرِ لا يُنافسُه على
+            // المجلَّدِ ولا يُمحى أحدُهما بمَسحِ الآخر
+            val staging = Downloader.stagingDir(context, "trim")
             // بقايا محاولةٍ سابقة: القصُّ لا يُنزِّلُ شيئاً فلا يُنافسُ تنزيلاً جارياً
             // على المجلَّد، لكنّ ملفّاً معلَّقاً من مرّةٍ فاشلةٍ يشغلُ مساحةً بلا فائدة.
             staging.listFiles()?.filter { it.name.startsWith(TEMP_PREFIX) }?.forEach { it.delete() }
@@ -233,7 +235,7 @@ object Trimmer {
         source: Source,
         onProgress: (Float) -> Unit,
     ): File {
-        val temp = File(Downloader.stagingDir(context), TEMP_PREFIX + safeName(source.displayName))
+        val temp = File(Downloader.stagingDir(context, "trim"), TEMP_PREFIX + safeName(source.displayName))
         val total = source.sizeBytes.takeIf { it > 0 }
         context.contentResolver.openInputStream(source.uri)?.use { input ->
             temp.outputStream().use { out ->

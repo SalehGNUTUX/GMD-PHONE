@@ -38,18 +38,20 @@ import com.gnutux.gmd.R
 import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.DownloadService
 import com.gnutux.gmd.data.LocalePrefs
+import com.gnutux.gmd.download.Downloader.Kind
+import com.gnutux.gmd.download.Downloader.Phase
 import com.gnutux.gmd.download.Progress
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.update.Updater
 
 /** حقل الرابط مع زرّ لصقٍ — على الهاتف اللصق أكثر من الكتابة بكثير. */
 @Composable
-private fun UrlField(vm: GmdViewModel) {
+private fun UrlField(st: SectionState) {
     val context = LocalContext.current
-    val url by vm.url.collectAsStateWithLifecycle()
+    val url by st.url.collectAsStateWithLifecycle()
     OutlinedTextField(
         value = url,
-        onValueChange = vm::setUrl,
+        onValueChange = st::setUrl,
         label = { Text(stringResource(R.string.enter_url)) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
@@ -59,7 +61,7 @@ private fun UrlField(vm: GmdViewModel) {
                 val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clip.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
                     ?.let { text -> Regex("""https?://\S+""").find(text)?.value ?: text }
-                    ?.let(vm::setUrl)
+                    ?.let(st::setUrl)
             }) {
                 Icon(Icons.Filled.ContentPaste, stringResource(R.string.paste_from_clip))
             }
@@ -77,19 +79,22 @@ fun DownloadScreen(
     onOpenGallery: () -> Unit,
 ) {
     val context = LocalContext.current
-    val url by vm.url.collectAsStateWithLifecycle()
-    val quality by vm.quality.collectAsStateWithLifecycle()
-    val format by vm.audioFormat.collectAsStateWithLifecycle()
-    val info by vm.info.collectAsStateWithLifecycle()
-    val clipOn by vm.clipEnabled.collectAsStateWithLifecycle()
-    val playlist by vm.playlist.collectAsStateWithLifecycle()
-    val plSelection by vm.playlistSelection.collectAsStateWithLifecycle()
+    // لكلِّ قسمٍ حالتُه: رابطُ الصوتِ لا يظهرُ في الفيديو، وتنزيلٌ هنا لا يمنعُ
+    // تنزيلاً هناك
+    val st = vm.section(isAudio)
+    val url by st.url.collectAsStateWithLifecycle()
+    val quality by st.quality.collectAsStateWithLifecycle()
+    val format by st.audioFormat.collectAsStateWithLifecycle()
+    val info by st.info.collectAsStateWithLifecycle()
+    val clipOn by st.clipEnabled.collectAsStateWithLifecycle()
+    val playlist by st.playlist.collectAsStateWithLifecycle()
+    val plSelection by st.playlistSelection.collectAsStateWithLifecycle()
     val running = progress is Progress.Running
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        UrlField(vm)
-        MediaPreviewCard(vm)
-        PlaylistCard(vm)
+        UrlField(st)
+        MediaPreviewCard(st)
+        PlaylistCard(st, progress)
 
         Text(
             stringResource(if (isAudio) R.string.format else R.string.quality),
@@ -100,7 +105,7 @@ fun DownloadScreen(
                 AudioFormat.entries.forEach { f ->
                     FilterChip(
                         selected = format == f,
-                        onClick = { vm.audioFormat.value = f },
+                        onClick = { st.audioFormat.value = f },
                         label = { Text(f.ext.uppercase()) },
                     )
                 }
@@ -108,41 +113,58 @@ fun DownloadScreen(
                 Quality.entries.forEach { q ->
                     FilterChip(
                         selected = quality == q,
-                        onClick = { vm.quality.value = q },
+                        onClick = { st.quality.value = q },
                         label = { Text(stringResource(labelOf(q))) },
                     )
                 }
             }
         }
 
-        if (playlist == null) ClipSection(vm)
+        if (playlist == null) ClipSection(st)
 
         if (running) {
             val p = progress as Progress.Running
+            // ما بعدَ التنزيلِ لا نسبةَ له عندَ yt-dlp: النسبةُ تجمُدُ عندَ 100٪ في
+            // التحويلِ والتجميعِ والحفظ، فيُعرَضُ شريطٌ غيرُ محدَّدٍ ومعه اسمُ
+            // المرحلة — والصمتُ هناك كانَ يُقرَأُ تجمُّداً فيُلغى عملٌ كادَ يتمّ
+            val determinate = p.phase == Phase.DOWNLOADING && p.percent > 0f
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (p.percent > 0f) {
+                if (determinate) {
                     LinearProgressIndicator({ p.percent / 100f }, Modifier.fillMaxWidth())
                 } else {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${p.percent.toInt()}%", style = MaterialTheme.typography.labelMedium)
-                    if (p.etaSeconds > 0) {
-                        Text("%02d:%02d".format(p.etaSeconds / 60, p.etaSeconds % 60),
-                            style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        buildString {
+                            append(stringResource(phaseLabel(p.phase)))
+                            if (p.itemCount > 1 && p.item > 0) {
+                                append("  ·  ")
+                                append(stringResource(R.string.phase_item, p.item, p.itemCount))
+                            }
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    if (determinate) {
+                        Text("${p.percent.toInt()}%", style = MaterialTheme.typography.labelMedium)
                     }
+                }
+                if (determinate && p.etaSeconds > 0) {
+                    Text("%02d:%02d".format(p.etaSeconds / 60, p.etaSeconds % 60),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             OutlinedButton(
-                onClick = { DownloadService.stop(context) },
+                onClick = { DownloadService.stop(context, if (isAudio) Kind.AUDIO else Kind.VIDEO) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.cancel)) }
         } else {
             Button(
                 onClick = {
-                    DownloadService.reset()
+                    DownloadService.reset(if (isAudio) Kind.AUDIO else Kind.VIDEO)
                     val i = info
-                    val sec = vm.section()
+                    val sec = st.section()
                     val pl = playlist
                     DownloadService.start(
                         context, url.trim(), isAudio,
@@ -157,7 +179,7 @@ fun DownloadScreen(
                     )
                 },
                 enabled = enabled && url.isNotBlank() &&
-                    (!clipOn || vm.section() != null) &&
+                    (!clipOn || st.section() != null) &&
                     (playlist == null || plSelection.isNotEmpty()),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -278,9 +300,9 @@ private fun FailureCard(vm: GmdViewModel, message: String) {
  * معنى لإنذارِ المستخدمِ مرّتين.
  */
 @Composable
-private fun MediaPreviewCard(vm: GmdViewModel) {
-    val info by vm.info.collectAsStateWithLifecycle()
-    val loading by vm.infoLoading.collectAsStateWithLifecycle()
+private fun MediaPreviewCard(st: SectionState) {
+    val info by st.info.collectAsStateWithLifecycle()
+    val loading by st.infoLoading.collectAsStateWithLifecycle()
 
     if (loading) {
         Row(
@@ -397,14 +419,14 @@ private fun DoneCard(done: Progress.Done, isAudio: Boolean, onOpenGallery: () ->
  * المستخدمِ ولا سؤال.
  */
 @Composable
-private fun ClipSection(vm: GmdViewModel) {
-    val enabled by vm.clipEnabled.collectAsStateWithLifecycle()
-    val start by vm.clipStart.collectAsStateWithLifecycle()
-    val end by vm.clipEnd.collectAsStateWithLifecycle()
+private fun ClipSection(st: SectionState) {
+    val enabled by st.clipEnabled.collectAsStateWithLifecycle()
+    val start by st.clipStart.collectAsStateWithLifecycle()
+    val end by st.clipEnd.collectAsStateWithLifecycle()
 
-    val startOk = start.isBlank() || vm.parseClock(start) != null
-    val endOk = end.isBlank() || vm.parseClock(end) != null
-    val rangeOk = !enabled || vm.section() != null
+    val startOk = start.isBlank() || parseClock(start) != null
+    val endOk = end.isBlank() || parseClock(end) != null
+    val rangeOk = !enabled || st.section() != null
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
@@ -414,14 +436,14 @@ private fun ClipSection(vm: GmdViewModel) {
         ) {
             Text(stringResource(R.string.clip_title), Modifier.weight(1f),
                 style = MaterialTheme.typography.labelLarge)
-            Switch(checked = enabled, onCheckedChange = { vm.clipEnabled.value = it })
+            Switch(checked = enabled, onCheckedChange = { st.clipEnabled.value = it })
         }
 
         if (enabled) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = start,
-                    onValueChange = { vm.clipStart.value = it },
+                    onValueChange = { st.clipStart.value = it },
                     label = { Text(stringResource(R.string.clip_from)) },
                     placeholder = { Text("0:00") },
                     singleLine = true,
@@ -430,7 +452,7 @@ private fun ClipSection(vm: GmdViewModel) {
                 )
                 OutlinedTextField(
                     value = end,
-                    onValueChange = { vm.clipEnd.value = it },
+                    onValueChange = { st.clipEnd.value = it },
                     label = { Text(stringResource(R.string.clip_to)) },
                     placeholder = { Text("1:30") },
                     singleLine = true,
@@ -509,10 +531,15 @@ private fun renderNotes(md: String): AnnotatedString = buildAnnotatedString {
  * والنافذةُ فيها تُخفي الجودةَ والصيغةَ اللتَين قد يريدُ تغييرَهما قبلَ التنزيل.
  */
 @Composable
-private fun PlaylistCard(vm: GmdViewModel) {
-    val playlist by vm.playlist.collectAsStateWithLifecycle()
-    val selection by vm.playlistSelection.collectAsStateWithLifecycle()
+private fun PlaylistCard(st: SectionState, progress: Progress) {
+    val playlist by st.playlist.collectAsStateWithLifecycle()
+    val selection by st.playlistSelection.collectAsStateWithLifecycle()
     val pl = playlist ?: return
+    // موضعُ العنصرِ الجاري كما يُعلنُه yt-dlp، فيُعرَفَ ما تمَّ من القائمةِ وما بقي.
+    // وكانَ المستخدمُ لا يرى إلّا نسبةً واحدةً لا تدلُّ على أيِّ عنصرٍ هي.
+    val running = progress as? Progress.Running
+    val current = running?.item ?: 0
+    val done = progress is Progress.Done
 
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -533,7 +560,7 @@ private fun PlaylistCard(vm: GmdViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                TextButton(onClick = { vm.togglePlaylistAll() }) {
+                TextButton(onClick = { st.togglePlaylistAll() }, enabled = running == null) {
                     Text(stringResource(
                         if (selection.size == pl.count) R.string.gallery_select_none
                         else R.string.gallery_select_all
@@ -555,15 +582,33 @@ private fun PlaylistCard(vm: GmdViewModel) {
                 Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState()),
             ) {
                 pl.entries.forEach { e ->
+                    val picked = e.index in selection
+                    val position = selection.sorted().indexOf(e.index) + 1
+                    val itemDone = picked && (done || (current > 0 && position in 1 until current))
+                    val itemNow = picked && current > 0 && position == current
                     Row(
-                        Modifier.fillMaxWidth().clickable { vm.togglePlaylistItem(e.index) }
+                        Modifier.fillMaxWidth().clickable { st.togglePlaylistItem(e.index) }
                             .padding(vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(
-                            checked = e.index in selection,
-                            onCheckedChange = { vm.togglePlaylistItem(e.index) },
-                        )
+                        // أثناء العملِ تحلُّ علامةُ الحالِ محلَّ مربّعِ الاختيار:
+                        // الاختيارُ قد انتهى، والذي يهمُّ الآنَ ما تمَّ وما يجري
+                        when {
+                            itemDone -> Icon(
+                                Icons.Filled.CheckCircle, null,
+                                Modifier.padding(horizontal = 12.dp).size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            itemNow -> CircularProgressIndicator(
+                                Modifier.padding(horizontal = 12.dp).size(16.dp),
+                                strokeWidth = 2.dp,
+                            )
+                            else -> Checkbox(
+                                checked = picked,
+                                enabled = running == null,
+                                onCheckedChange = { st.togglePlaylistItem(e.index) },
+                            )
+                        }
                         Text(
                             "${e.index}. ${e.title}",
                             Modifier.weight(1f),
@@ -579,6 +624,14 @@ private fun PlaylistCard(vm: GmdViewModel) {
             }
         }
     }
+}
+
+/** اسمُ المرحلةِ كما يراها المستخدم: تنزيلٌ أم تحويلٌ أم تجميعٌ أم حفظ. */
+private fun phaseLabel(phase: Phase) = when (phase) {
+    Phase.DOWNLOADING -> R.string.phase_downloading
+    Phase.CONVERTING -> R.string.phase_converting
+    Phase.MERGING -> R.string.phase_merging
+    Phase.SAVING -> R.string.phase_saving
 }
 
 private fun labelOf(q: Quality) = when (q) {
@@ -618,15 +671,17 @@ private fun ResultCard(
 
 @Composable
 fun InfoScreen(vm: GmdViewModel, enabled: Boolean) {
-    val url by vm.url.collectAsStateWithLifecycle()
-    val info by vm.info.collectAsStateWithLifecycle()
-    val loading by vm.infoLoading.collectAsStateWithLifecycle()
-    val error by vm.infoError.collectAsStateWithLifecycle()
+    // شاشةٌ ثالثةٌ برابطِها: سؤالٌ عن مقطعٍ لا يُبدِّلُ رابطاً قيدَ التنزيل
+    val st = vm.probe
+    val url by st.url.collectAsStateWithLifecycle()
+    val info by st.info.collectAsStateWithLifecycle()
+    val loading by st.infoLoading.collectAsStateWithLifecycle()
+    val error by st.infoError.collectAsStateWithLifecycle()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        UrlField(vm)
+        UrlField(st)
         Button(
-            onClick = vm::loadInfo,
+            onClick = st::loadInfo,
             enabled = enabled && url.isNotBlank() && !loading,
             modifier = Modifier.fillMaxWidth(),
         ) {

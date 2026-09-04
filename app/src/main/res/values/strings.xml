@@ -168,4 +168,15 @@
     <string name="notif_trimming">Trimming</string>
     <string name="notif_trim_done">Trim complete</string>
     <string name="notif_trim_failed">Trim failed</string>
+    <string name="phase_downloading">Downloading</string>
+    <string name="phase_converting">Converting</string>
+    <string name="phase_merging">Merging audio and video</string>
+    <string name="phase_saving">Saving to the gallery</string>
+    <string name="phase_item">Item %1$d of %2$d</string>
+    <string name="notif_downloading_n">Downloading %1$d jobs</string>
+    <string name="notif_stop_all">Stop all</string>
+    <string name="gallery_videos">Videos</string>
+    <string name="gallery_audios">Audio</string>
+    <string name="gallery_playlists">Playlists</string>
+    <string name="gallery_singles">Single files</string>
 </resources>
