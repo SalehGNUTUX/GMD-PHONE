@@ -179,4 +179,11 @@
     <string name="gallery_audios">Audio</string>
     <string name="gallery_playlists">Playlists</string>
     <string name="gallery_singles">Single files</string>
+    <string name="history_running">Running</string>
+    <string name="history_open_section">Open the section</string>
+    <string name="history_busy_title">The section is busy</string>
+    <string name="history_busy_message">A download is running in this section. Putting a new link here would hide its progress and what its playlist has finished, while it keeps running in the background. Open the section to watch it, or wait for it to finish and try again.</string>
+    <string name="already_title">Already downloaded</string>
+    <string name="already_message">This link was downloaded before and it succeeded. Download it again?</string>
+    <string name="already_again">Download again</string>
 </resources>

@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -68,6 +69,8 @@ sealed interface Progress {
  * حقلٍ فارغٍ بينما التنزيلُ يعمل. وهذه هي ذاكرةُ ما كان.
  */
 data class JobInfo(
+    /** معرِّفُ مدخلِ السجلِّ الموسومِ «سارياً»، ليُعرَفَ الحيُّ من المهجور. */
+    val entryId: Long,
     val url: String,
     val choice: String,
     val playlistTitle: String?,
@@ -113,6 +116,8 @@ class DownloadService : Service() {
     private class Runner(
         val processId: String,
         val attempt: Attempt,
+        /** معرِّفُ مدخلِ السجلِّ المكتوبِ عندَ البدء، ليُختَمَ في موضعِه لا في مدخلٍ ثانٍ. */
+        val entryId: Long,
         val recorded: AtomicBoolean = AtomicBoolean(false),
     )
 
@@ -169,10 +174,15 @@ class DownloadService : Service() {
             playlistTitle = intent.getStringExtra(EXTRA_PL_TITLE),
         )
 
-        val processId = "${kind.name}-${System.currentTimeMillis()}"
-        val runner = Runner(processId, attempt)
+        val now = System.currentTimeMillis()
+        val processId = "${kind.name}-$now"
+        val runner = Runner(processId, attempt, entryId = now)
         runners[kind] = runner
+        // المحاولةُ تدخلُ السجلَّ الآنَ موسومةً «سارية»، لا عندَ نهايتِها: كانَ
+        // المستخدمُ يفتحُ السجلَّ وتنزيلٌ يجري فلا يجدُ له أثراً
+        openRecord(runner)
         store(kind, JobInfo(
+            entryId = now,
             url = url,
             choice = choice,
             playlistTitle = attempt.playlistTitle,
@@ -199,13 +209,36 @@ class DownloadService : Service() {
             var phase = Phase.DOWNLOADING
             var item = 0
             var itemCount = attempt.playlist?.items?.size ?: 0
+            val folder = attempt.playlist?.folder
 
-            val result = Downloader.run(applicationContext, job, processId) { percent, eta, line ->
-                Downloader.Watch.phaseOf(line)?.let { phase = it }
-                Downloader.Watch.itemOf(line)?.let { (i, n) -> item = i; itemCount = n }
-                setProgress(kind, Progress.Running(percent, eta, line, phase, item, itemCount))
-                notifyOngoing()
+            // ما اكتملَ من القائمةِ يُنقَلُ إلى المعرضِ أوّلاً بأوّل، لا بعدَ آخرِ
+            // مقطعٍ فيها: كانَ صاحبُها يفتحُ المعرضَ وقد نزلَ خمسةٌ من سبعةٍ فلا
+            // يجدُ شيئاً. والقناةُ لأنّ النداءَ يقعُ في خيطِ قراءةِ خرجِ yt-dlp،
+            // والنقلُ عملٌ مُعلَّقٌ لا يجري فيه.
+            val ready = Channel<java.io.File>(Channel.UNLIMITED)
+            val savedEarly = java.util.concurrent.atomic.AtomicInteger(0)
+            val lastEarly = java.util.concurrent.atomic.AtomicReference<MediaStoreSaver.Saved?>(null)
+            val saver = launch {
+                for (f in ready) {
+                    MediaStoreSaver.save(applicationContext, f, isAudio, folder).onSuccess {
+                        lastEarly.set(it)
+                        savedEarly.incrementAndGet()
+                    }
+                }
             }
+
+            val result = Downloader.run(
+                applicationContext, job, processId,
+                onProgress = { percent, eta, line ->
+                    Downloader.Watch.phaseOf(line)?.let { phase = it }
+                    Downloader.Watch.itemOf(line)?.let { (i, n) -> item = i; itemCount = n }
+                    setProgress(kind, Progress.Running(percent, eta, line, phase, item, itemCount))
+                    notifyOngoing()
+                },
+                onFileReady = { ready.trySend(it) },
+            )
+            ready.close()
+            saver.join()
 
             result.fold(
                 onSuccess = { files ->
@@ -215,9 +248,10 @@ class DownloadService : Service() {
                     notifyOngoing(force = true)
                     // كلُّ ملفٍّ يُنقَل على حدة، وقائمةُ التشغيل تُودَع مجلَّداً باسمِها.
                     // وفشلُ ملفٍّ لا يُهدِر ما نجح قبلَه: ما حُفِظ يبقى محفوظاً.
-                    val folder = attempt.playlist?.folder
-                    var saved: MediaStoreSaver.Saved? = null
-                    var count = 0
+                    // وما نُقِلَ أثناءَ العملِ محسوبٌ هنا فلا يُعَدُّ التنزيلُ فاشلاً
+                    // لأنّ مجلَّدَ العملِ فرغَ منه.
+                    var saved: MediaStoreSaver.Saved? = lastEarly.get()
+                    var count = savedEarly.get()
                     var lastError: Throwable? = null
                     files.forEach { f ->
                         MediaStoreSaver.save(applicationContext, f, isAudio, folder).fold(
@@ -231,7 +265,7 @@ class DownloadService : Service() {
                     } else {
                         val name = if (count > 1) (attempt.playlistTitle ?: s.relativePath)
                                    else s.displayName
-                        record(runner, Outcome.SUCCESS, null, s.uri.toString(), name, s.relativePath, count)
+                        closeRecord(runner, Outcome.SUCCESS, null, s.uri.toString(), name, s.relativePath, count)
                         setProgress(kind, Progress.Done(name, s.relativePath, s.uri.toString(), count))
                         notifyTerminal(kind, getString(R.string.notif_done), name)
                     }
@@ -246,13 +280,39 @@ class DownloadService : Service() {
 
     private fun fail(kind: Kind, runner: Runner, t: Throwable) {
         val msg = t.message ?: t::class.java.simpleName
-        record(runner, Outcome.FAILED, msg, null, null, null)
+        closeRecord(runner, Outcome.FAILED, msg, null, null, null)
         setProgress(kind, Progress.Failed(msg))
         notifyTerminal(kind, getString(R.string.notif_failed), msg)
     }
 
-    /** يكتبُ المحاولةَ في السجلِّ مرّةً واحدة. */
-    private fun record(
+    /** يفتحُ مدخلَ المحاولةِ في السجلِّ موسوماً «سارياً» لحظةَ بدئِها. */
+    private fun openRecord(runner: Runner) {
+        val a = runner.attempt
+        writeAsync {
+            HistoryStore.add(
+                applicationContext,
+                HistoryEntry(
+                    id = runner.entryId, url = a.url, title = a.title, uploader = a.uploader,
+                    duration = a.duration, thumbnail = a.thumbnail, isAudio = a.isAudio,
+                    choice = a.choice, outcome = Outcome.RUNNING, error = null,
+                    savedUri = null, savedName = null, savedPath = null,
+                    timestamp = runner.entryId,
+                    sectionStart = a.section?.startSec, sectionEnd = a.section?.endSec,
+                    playlistTitle = a.playlistTitle,
+                    playlistRequested = a.playlist?.items?.size,
+                    playlistSaved = null,
+                ),
+            )
+        }
+    }
+
+    /**
+     * يختمُ المدخلَ بنتيجتِه مرّةً واحدة.
+     *
+     * والحارسُ الذرّيُّ يمنعُ ختمَين: الإلغاءُ يُنهي المهمّةَ وقد خُتِمت، وقد يتلاقى
+     * المسلكانِ حينَ يُلغي المستخدمُ تنزيلاً في لحظةِ انتهائه.
+     */
+    private fun closeRecord(
         runner: Runner,
         outcome: Outcome,
         error: String?,
@@ -262,31 +322,30 @@ class DownloadService : Service() {
         savedCount: Int = 1,
     ) {
         if (!runner.recorded.compareAndSet(false, true)) return
-        val a = runner.attempt
-        val now = System.currentTimeMillis()
-        // نطاقٌ مستقلٌّ عن `scope`: هذا الأخير يُلغى في onDestroy وقد تُقتَل الخدمةُ
-        // فور التسجيل، فتضيع الكتابة.
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            HistoryStore.add(
-                applicationContext,
-                HistoryEntry(
-                    id = now, url = a.url, title = a.title, uploader = a.uploader,
-                    duration = a.duration, thumbnail = a.thumbnail, isAudio = a.isAudio,
-                    choice = a.choice, outcome = outcome, error = error,
-                    savedUri = uri, savedName = name, savedPath = path, timestamp = now,
-                    sectionStart = a.section?.startSec, sectionEnd = a.section?.endSec,
-                    playlistTitle = a.playlistTitle,
-                    playlistRequested = a.playlist?.items?.size,
-                    playlistSaved = if (outcome == Outcome.SUCCESS) savedCount else null,
-                ),
-            )
+        writeAsync {
+            HistoryStore.update(applicationContext, runner.entryId) { e ->
+                e.copy(
+                    outcome = outcome, error = error,
+                    savedUri = uri, savedName = name, savedPath = path,
+                    playlistSaved = if (outcome == Outcome.SUCCESS && e.isPlaylist) savedCount
+                                    else e.playlistSaved,
+                )
+            }
         }
+    }
+
+    /**
+     * نطاقٌ مستقلٌّ عن `scope`: هذا الأخير يُلغى في onDestroy وقد تُقتَل الخدمةُ فورَ
+     * التسجيل، فتضيعُ الكتابة.
+     */
+    private fun writeAsync(block: suspend () -> Unit) {
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch { block() }
     }
 
     private fun stopWork(kind: Kind) {
         val runner = runners.remove(kind) ?: return
         Downloader.cancel(runner.processId)
-        record(runner, Outcome.CANCELLED, null, null, null, null)
+        closeRecord(runner, Outcome.CANCELLED, null, null, null, null)
         setProgress(kind, Progress.Idle)
         forget(kind)
         cancelTerminal(kind)

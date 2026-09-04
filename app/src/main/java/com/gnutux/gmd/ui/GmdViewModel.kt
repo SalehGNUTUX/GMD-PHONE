@@ -1,12 +1,16 @@
 package com.gnutux.gmd.ui
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gnutux.gmd.data.Settings
 import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.DownloadService
 import com.gnutux.gmd.download.JobInfo
+import com.gnutux.gmd.history.HistoryEntry
+import com.gnutux.gmd.history.HistoryStore
+import com.gnutux.gmd.history.Outcome
 import com.gnutux.gmd.download.Downloader
 import com.gnutux.gmd.download.MediaInfo
 import com.gnutux.gmd.download.PlaylistInfo
@@ -258,12 +262,48 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
      * المستخدمُ يعودُ إلى حقلٍ فارغٍ وشريطٍ ساكنٍ والتنزيلُ يجري في الخلفيّة.
      */
     fun restoreRunningJobs() {
-        DownloadService.jobs.value.forEach { (kind, info) ->
+        val jobs = DownloadService.jobs.value
+        jobs.forEach { (kind, info) ->
             section(kind == Downloader.Kind.AUDIO).restore(info)
+        }
+        // ومدخلاتُ السجلِّ الموسومةُ «سارية» ولا مهمّةَ لها: خدمةٌ قُتِلت مع عمليّتِها
+        // فلم يُكتَب ختامُها. تُختَمُ ملغاةً بدلَ أن تبقى تكذبُ على صاحبِها.
+        viewModelScope.launch {
+            HistoryStore.settleOrphans(getApplication(), jobs.values.map { it.entryId }.toSet())
         }
     }
 
     fun parseClock(text: String): Int? = com.gnutux.gmd.ui.parseClock(text)
+
+    /**
+     * محاولةٌ ناجحةٌ سابقةٌ لنفسِ الرابطِ ونفسِ النوع، أو `null`.
+     *
+     * فمن نزّلَ مقطعاً بالأمسِ ثمّ لصقَ رابطَه اليومَ لا يُترَكُ يُنزّلُه ثانيةً وهو
+     * لا يدري — بياناتٌ وزمنٌ ومساحةٌ تُنفَقُ على ما في يدِه.
+     *
+     * والمطابقةُ على مفتاحٍ مطبَّعٍ لا على النصِّ الخام: روابطُ المشاركةِ تحملُ
+     * `si=` مختلفاً في كلِّ مرّة، فمقارنةُ الحرفِ بالحرفِ لا تُطابِقُ رابطَين
+     * لمقطعٍ واحد.
+     */
+    suspend fun findPrevious(url: String, isAudio: Boolean): HistoryEntry? {
+        val key = urlKey(url)
+        if (key.isBlank()) return null
+        return HistoryStore.all(getApplication()).firstOrNull {
+            it.outcome == Outcome.SUCCESS && it.isAudio == isAudio && urlKey(it.url) == key
+        }
+    }
+
+    private fun urlKey(url: String): String = runCatching {
+        val u = Uri.parse(url.trim())
+        val v = u.getQueryParameter("v")
+        val list = u.getQueryParameter("list")
+        buildString {
+            append(u.host.orEmpty().removePrefix("www.").removePrefix("m."))
+            append(u.path.orEmpty().trimEnd('/'))
+            v?.let { append("?v=").append(it) }
+            list?.let { append("&list=").append(it) }
+        }.lowercase()
+    }.getOrDefault(url.trim().lowercase())
 
     // ── اقتصاصُ ملفٍّ من الجهاز ────────────────────────────────────────────────
     // حالةٌ مستقلّةٌ عن حقولِ الاقتصاصِ عندَ التنزيل: الشاشتانِ تعملانِ على مادّتَين

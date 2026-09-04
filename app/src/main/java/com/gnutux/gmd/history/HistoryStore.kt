@@ -9,8 +9,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** ما آلت إليه محاولةُ تنزيل. */
-enum class Outcome { SUCCESS, FAILED, CANCELLED }
+/**
+ * ما آلت إليه محاولةُ تنزيل — أو ما هي فيه الآن.
+ *
+ * و[RUNNING] ليست زينة: المحاولةُ تُسجَّلُ **عندَ بدئِها** لا عندَ نهايتِها، فكانَ
+ * المستخدمُ يفتحُ السجلَّ وتنزيلٌ يجري فلا يجدُ له أثراً — وقد يطولُ التنزيلُ
+ * ساعةً. ثمّ تُختَمُ بنتيجتِها في المدخلِ نفسِه لا في مدخلٍ ثانٍ.
+ */
+enum class Outcome { RUNNING, SUCCESS, FAILED, CANCELLED }
 
 /**
  * محاولةُ تنزيلٍ واحدة — لا ملفٌّ واحد.
@@ -133,6 +139,44 @@ object HistoryStore {
             write(context, list.take(MAX_ENTRIES))
         }
     }
+
+    /**
+     * يُبدِّلُ مدخلاً قائماً بمعرِّفِه.
+     *
+     * فالمحاولةُ تُكتَبُ مرّتَين: «سارية» عندَ بدئِها، ثمّ نتيجتُها في موضعِها نفسِه.
+     * ولو أُضيفَ مدخلٌ ثانٍ لصارَ لكلِّ تنزيلٍ سطران.
+     */
+    suspend fun update(
+        context: Context,
+        id: Long,
+        transform: (HistoryEntry) -> HistoryEntry,
+    ): Unit = withContext(Dispatchers.IO) {
+        lock.withLock {
+            val list = read(context)
+            if (list.none { it.id == id }) return@withLock
+            write(context, list.map { if (it.id == id) transform(it) else it })
+        }
+    }
+
+    /**
+     * يختمُ ما بقيَ «سارياً» من جلسةٍ ماتت.
+     *
+     * فالخدمةُ تُقتَلُ مع العمليّةِ أحياناً — نفادُ ذاكرةٍ أو إيقافٌ من النظام — فلا
+     * يُكتَبُ ختامُ المحاولة. ولو تُرِكَ المدخلُ «سارياً» أبداً لبقيَ يكذبُ على صاحبِه.
+     * [alive] معرِّفاتُ ما يجري فعلاً الآن.
+     */
+    suspend fun settleOrphans(context: Context, alive: Set<Long>): Unit =
+        withContext(Dispatchers.IO) {
+            lock.withLock {
+                val list = read(context)
+                if (list.none { it.outcome == Outcome.RUNNING && it.id !in alive }) return@withLock
+                write(context, list.map {
+                    if (it.outcome == Outcome.RUNNING && it.id !in alive)
+                        it.copy(outcome = Outcome.CANCELLED)
+                    else it
+                })
+            }
+        }
 
     suspend fun remove(context: Context, ids: Set<Long>): Unit = withContext(Dispatchers.IO) {
         if (ids.isEmpty()) return@withContext

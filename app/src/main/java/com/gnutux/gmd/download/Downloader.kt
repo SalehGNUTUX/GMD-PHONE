@@ -229,11 +229,20 @@ object Downloader {
      * ينفّذ المهمّة ويستدعي [onProgress] بنسبةٍ مئويّةٍ ومدّةٍ متبقّية.
      * [processId] يسمح بإلغائها لاحقاً عبر [cancel].
      */
+    /**
+     * [onFileReady] يُنادى بكلِّ ملفٍّ اكتملَ **أثناءَ** العمل، لا بعدَ انتهائِه كلِّه.
+     *
+     * فقائمةُ تشغيلٍ من سبعةِ مقاطعَ كانت تبقى في مجلَّدِ العملِ حتّى ينتهيَ آخرُها،
+     * ثمّ تُنقَلُ دفعةً واحدةً إلى المعرض — فلا يرى صاحبُها في المعرضِ شيئاً وقد
+     * نزلَ خمسةٌ منها. والملفّاتُ المسلَّمةُ لا تعودُ في القائمةِ الأخيرةِ فلا تُنقَلُ
+     * مرّتَين.
+     */
     suspend fun run(
         context: Context,
         job: Job,
         processId: String,
         onProgress: (percent: Float, etaSeconds: Long, line: String) -> Unit,
+        onFileReady: ((File) -> Unit)? = null,
     ): Result<List<File>> = withContext(Dispatchers.IO) {
         runCatching {
             val out = stagingDir(context, if (job is Job.Audio) "audio" else "video")
@@ -246,7 +255,7 @@ object Downloader {
 
             // المسلك الأوّل: نطلب من الخادم الجزءَ وحدَه فلا يُنزَّل ما لا يُراد،
             // وهو على الهاتف توفيرٌ حقيقيّ في البيانات والوقت معاً.
-            val first = attempt(context, job, section, processId, out, failure, onProgress)
+            val first = attempt(context, job, section, processId, out, failure, onProgress, onFileReady)
             if (first.isNotEmpty()) {
                 return@runCatching if (section != null) listOf(trim(context, first.first(), section))
                 else first
@@ -281,7 +290,10 @@ object Downloader {
         out: File,
         failure: Failure,
         onProgress: (Float, Long, String) -> Unit,
+        onFileReady: ((File) -> Unit)? = null,
     ): List<File> {
+        /** ما سُلِّمَ أثناءَ العمل، فلا يُسلَّمُ ثانيةً في النهاية. */
+        val delivered = java.util.Collections.synchronizedSet(HashSet<String>())
         val request = YoutubeDLRequest(sanitize(job.url)).apply {
             addOption("--no-mtime")
             if (job.playlist != null) {
@@ -311,13 +323,22 @@ object Downloader {
             }
         }
 
+        val items = job.playlist?.items
         return try {
             val response: YoutubeDLResponse =
                 YoutubeDL.getInstance().execute(request, processId) { p, eta, line ->
                     onProgress(p, eta, line)
+                    // انتقالُ العنصرِ إعلانٌ بأنّ ما قبلَه تمَّ: يُسلَّمُ الآنَ ولا
+                    // يُنتظَرُ به آخرُ القائمة
+                    if (onFileReady != null && items != null) {
+                        Watch.itemOf(line)?.let { (position, _) ->
+                            sweep(out, items.take(position - 1), delivered, onFileReady)
+                        }
+                    }
                 }
             val produced = out.listFiles()
                 ?.filter { it.isFile && it.length() > 0 && !it.name.endsWith(".part") }
+                ?.filter { it.name !in delivered }
                 ?.sortedBy { it.name }
                 .orEmpty()
 
@@ -325,17 +346,47 @@ object Downloader {
             // في الخرج، فـ yt-dlp يطبعها على محاولةٍ فاشلةٍ ثمّ ينجح بالتالية.
             // وفي قائمةِ التشغيل يُمرَّر `--ignore-errors` فيخرج برمزٍ غيرِ صفرٍ وقد
             // نجح بعضُها، فما نزل يُحفَظ ولا يُهدَر لأجل ما سقط.
-            if (response.exitCode != 0 && produced.isEmpty()) {
+            if (response.exitCode != 0 && produced.isEmpty() && delivered.isEmpty()) {
                 failure.message = "yt-dlp exited with ${response.exitCode}"
                 return emptyList()
             }
-            if (produced.isEmpty()) failure.message = "no output file was produced"
+            if (produced.isEmpty() && delivered.isEmpty()) failure.message = "no output file was produced"
             produced
         } catch (e: Throwable) {
             failure.message = e.message ?: e::class.java.name
             emptyList()
         }
     }
+
+    /**
+     * يُسلّمُ ملفّاتِ العناصرِ التي تمَّت، ولا يمسُّ ما يجري.
+     *
+     * والتمييزُ بترتيبِ العنصرِ في الاسم — `07 - العنوان.mp3` — لا بحداثةِ الملفّ:
+     * فـyt-dlp يكتبُ أثناءَ العنصرِ الجاري قِطَعاً مؤقّتةً تبدو مكتملةً (`.f137.mp4`
+     * قبلَ التجميع)، فنقلُها يُفسِدُ المقطعَ ويُهدِرُ ما نزل. و`--playlist-items`
+     * يجعلُ «العنصر 3 من 7» ترتيباً في المطلوبِ لا رقمَ الفهرس، فيُقرَأُ الرقمُ من
+     * قائمةِ ما طُلِبَ لا من العدّ.
+     */
+    private fun sweep(
+        out: File,
+        completed: List<Int>,
+        delivered: MutableSet<String>,
+        onFileReady: (File) -> Unit,
+    ) {
+        if (completed.isEmpty()) return
+        val prefixes = completed.map { "%02d - ".format(it) }
+        out.listFiles()?.forEach { f ->
+            if (!f.isFile || f.length() == 0L) return@forEach
+            if (f.name in delivered) return@forEach
+            if (WORKING.containsMatchIn(f.name)) return@forEach
+            if (prefixes.none { f.name.startsWith(it) }) return@forEach
+            delivered.add(f.name)
+            onFileReady(f)
+        }
+    }
+
+    /** لواحقُ عملٍ جارٍ أو قِطَعٍ لم تُجمَّع بعد. */
+    private val WORKING = Regex("""\.(part|ytdl|temp|f\d+\.[a-z0-9]+)$""")
 
     /**
      * يقتصُّ المقطعَ من ملفٍّ منزَّلٍ كاملاً.

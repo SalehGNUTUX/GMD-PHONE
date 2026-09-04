@@ -179,4 +179,11 @@
     <string name="gallery_audios">الصوتيّات</string>
     <string name="gallery_playlists">قوائم التشغيل</string>
     <string name="gallery_singles">ملفّات مفردة</string>
+    <string name="history_running">سارية</string>
+    <string name="history_open_section">افتح القسم</string>
+    <string name="history_busy_title">القسمُ مشغول</string>
+    <string name="history_busy_message">تنزيلٌ يجري الآنَ في هذا القسم. ولو وُضِعَ فيه رابطٌ جديدٌ لغابَ عنك تقدُّمُ الجاري وما تمَّ من قائمتِه، وهو يُكمِلُ في الخلفيّةِ على كلِّ حال. افتح القسمَ لترى تقدُّمَه، أو انتظر انتهاءَه ثمّ أعِد المحاولة.</string>
+    <string name="already_title">سبقَ تنزيلُه</string>
+    <string name="already_message">هذا الرابطُ نُزِّلَ من قبلُ ونجح. أتُنزّلُه ثانيةً؟</string>
+    <string name="already_again">نزّله ثانيةً</string>
 </resources>

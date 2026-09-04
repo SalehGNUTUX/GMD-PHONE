@@ -218,6 +218,7 @@ private fun EntryCard(
     onCopy: (String) -> Unit,
 ) {
     val ok = entry.outcome == Outcome.SUCCESS
+    val running = entry.outcome == Outcome.RUNNING
     Card(
         Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = if (selected)
@@ -293,6 +294,7 @@ private fun EntryCard(
                     label = {
                         Text(stringResource(
                             when (entry.outcome) {
+                                Outcome.RUNNING -> R.string.history_running
                                 Outcome.SUCCESS -> R.string.history_ok
                                 Outcome.FAILED -> R.string.history_failed
                                 Outcome.CANCELLED -> R.string.history_cancelled
@@ -300,9 +302,12 @@ private fun EntryCard(
                         ))
                     },
                     colors = AssistChipDefaults.assistChipColors(
-                        disabledLabelColor =
-                            if (ok) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.error,
+                        disabledLabelColor = when {
+                            ok -> MaterialTheme.colorScheme.primary
+                            // «سارية» ليست نجاحاً ولا فشلاً، فلا تُلوَّن بلونِ أحدِهما
+                            running -> MaterialTheme.colorScheme.onSurfaceVariant
+                            else -> MaterialTheme.colorScheme.error
+                        },
                     ),
                 )
                 if (selecting) Checkbox(checked = selected, onCheckedChange = { onLongClick() })
@@ -327,9 +332,15 @@ private fun EntryCard(
 
             if (!selecting) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // مدخلٌ سارٍ لا يُعادُ تنزيلُه: زرُّه يفتحُ شاشتَه ليرى صاحبُه
+                    // تقدُّمَه، لا ليبدأَ فوقَه تنزيلاً ثانياً
                     TextButton(onClick = onRetry) {
                         Text(stringResource(
-                            if (ok) R.string.history_again else R.string.retry
+                            when {
+                                running -> R.string.history_open_section
+                                ok -> R.string.history_again
+                                else -> R.string.retry
+                            }
                         ))
                     }
                     TextButton(onClick = { onCopy(entry.url) }) {

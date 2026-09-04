@@ -70,12 +70,32 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
     LaunchedEffect(Unit) { vm.restoreRunningJobs() }
 
     var confirmExit by remember { mutableStateOf(false) }
+    /** قسمٌ طُلِبَ إليه رابطٌ جديدٌ وهو يعمل؛ يُسألُ صاحبُه قبلَ أن يُطمَسَ ما يجري. */
+    var busySection by remember { mutableStateOf<Screen?>(null) }
 
     // زرُّ الرجوع: يعودُ إلى القائمة من أيِّ شاشةٍ فرعيّة، ولا يخرجُ من التطبيقِ
     // إلّا من القائمةِ نفسِها وبعدَ تأكيد. وكان يخرجُ رأساً من أيِّ موضعٍ بلا سؤال،
     // فيُفقَد ما في الحقولِ بضغطةٍ واحدةٍ غيرِ مقصودة.
     BackHandler(enabled = screen != Screen.Menu) { screen = Screen.Menu }
     BackHandler(enabled = screen == Screen.Menu && !confirmExit) { confirmExit = true }
+
+    busySection?.let { target ->
+        AlertDialog(
+            onDismissRequest = { busySection = null },
+            title = { Text(stringResource(R.string.history_busy_title)) },
+            text = { Text(stringResource(R.string.history_busy_message)) },
+            confirmButton = {
+                TextButton(onClick = { screen = target; busySection = null }) {
+                    Text(stringResource(R.string.history_open_section))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { busySection = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
 
     if (confirmExit) {
         val activity = LocalContext.current as? Activity
@@ -186,6 +206,15 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                 Screen.History -> HistoryScreen(onRetry = { entry ->
                     // إعادةُ المحاولةِ بالجودةِ نفسِها: أنفعُ ما في السجلّ، فإغلاقُ
                     // بطاقةِ الخطأِ كان يُضيعُ الرابطَ وسببَ الفشلِ معاً.
+                    val kind = if (entry.isAudio) Downloader.Kind.AUDIO else Downloader.Kind.VIDEO
+                    val target = if (entry.isAudio) Screen.Audio else Screen.Video
+                    // وقسمٌ يعملُ لا يُكتَبُ فوقَه: كانَ الرابطُ يحلُّ محلَّ الرابطِ
+                    // الجاري فيغيبُ عن صاحبِه تقدُّمُه وما تمَّ من قائمتِه، والتنزيلُ
+                    // يُكمِلُ في الخلفيّةِ لا يدري به
+                    if (progress[kind] is Progress.Running) {
+                        busySection = target
+                        return@HistoryScreen
+                    }
                     val st = vm.section(entry.isAudio)
                     st.setUrl(entry.url)
                     st.setSection(entry.sectionStart, entry.sectionEnd)

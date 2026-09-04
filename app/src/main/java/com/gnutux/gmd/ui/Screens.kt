@@ -43,10 +43,11 @@ import com.gnutux.gmd.download.Downloader.Phase
 import com.gnutux.gmd.download.Progress
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.update.Updater
+import kotlinx.coroutines.launch
 
 /** حقل الرابط مع زرّ لصقٍ — على الهاتف اللصق أكثر من الكتابة بكثير. */
 @Composable
-private fun UrlField(st: SectionState) {
+private fun UrlField(st: SectionState, enabled: Boolean = true) {
     val context = LocalContext.current
     val url by st.url.collectAsStateWithLifecycle()
     OutlinedTextField(
@@ -54,10 +55,13 @@ private fun UrlField(st: SectionState) {
         onValueChange = st::setUrl,
         label = { Text(stringResource(R.string.enter_url)) },
         singleLine = true,
+        // القسمُ يعملُ: الحقلُ مقفولٌ فلا يُكتَبُ فوقَ رابطٍ يُنزَّلُ الآنَ فيغيبَ
+        // تقدُّمُه وما تمَّ من قائمتِه — والتنزيلُ يُكمِلُ في الخلفيّةِ لا يدري به
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
         trailingIcon = {
-            IconButton(onClick = {
+            IconButton(enabled = enabled, onClick = {
                 val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clip.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
                     ?.let { text -> Regex("""https?://\S+""").find(text)?.value ?: text }
@@ -90,9 +94,72 @@ fun DownloadScreen(
     val playlist by st.playlist.collectAsStateWithLifecycle()
     val plSelection by st.playlistSelection.collectAsStateWithLifecycle()
     val running = progress is Progress.Running
+    val scope = rememberCoroutineScope()
+    /** محاولةٌ ناجحةٌ سابقةٌ لهذا الرابط، تُعرَضُ قبلَ أن يُعادَ تنزيلُه. */
+    var already by remember { mutableStateOf<com.gnutux.gmd.history.HistoryEntry?>(null) }
+
+    fun start() {
+        DownloadService.reset(if (isAudio) Kind.AUDIO else Kind.VIDEO)
+        val i = st.info.value
+        val sec = st.section()
+        val pl = st.playlist.value
+        DownloadService.start(
+            context, st.url.value.trim(), isAudio,
+            if (isAudio) st.audioFormat.value.name else st.quality.value.name,
+            title = i?.title, uploader = i?.uploader,
+            duration = i?.duration, thumbnail = i?.thumbnail,
+            sectionStart = sec?.startSec ?: -1,
+            sectionEnd = sec?.endSec ?: -1,
+            playlistFolder = pl?.folderName(),
+            playlistItems = if (pl != null) st.playlistSelection.value.sorted().toIntArray() else null,
+            playlistTitle = pl?.title,
+        )
+    }
+
+    already?.let { previous ->
+        AlertDialog(
+            onDismissRequest = { already = null },
+            title = { Text(stringResource(R.string.already_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.already_message))
+                    previous.savedPath?.let {
+                        Text("${stringResource(R.string.save_to)}: $it",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { already = null; start() }) {
+                    Text(stringResource(R.string.already_again))
+                }
+            },
+            dismissButton = {
+                Row {
+                    previous.savedUri?.let { uri ->
+                        TextButton(onClick = {
+                            already = null
+                            runCatching {
+                                context.startActivity(
+                                    android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                        .setDataAndType(android.net.Uri.parse(uri),
+                                            if (previous.isAudio) "audio/*" else "video/*")
+                                        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                )
+                            }
+                        }) { Text(stringResource(R.string.play_file)) }
+                    }
+                    TextButton(onClick = { already = null }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            },
+        )
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        UrlField(st)
+        UrlField(st, enabled = !running)
         MediaPreviewCard(st)
         PlaylistCard(st, progress)
 
@@ -105,6 +172,7 @@ fun DownloadScreen(
                 AudioFormat.entries.forEach { f ->
                     FilterChip(
                         selected = format == f,
+                        enabled = !running,
                         onClick = { st.audioFormat.value = f },
                         label = { Text(f.ext.uppercase()) },
                     )
@@ -113,6 +181,7 @@ fun DownloadScreen(
                 Quality.entries.forEach { q ->
                     FilterChip(
                         selected = quality == q,
+                        enabled = !running,
                         onClick = { st.quality.value = q },
                         label = { Text(stringResource(labelOf(q))) },
                     )
@@ -120,7 +189,7 @@ fun DownloadScreen(
             }
         }
 
-        if (playlist == null) ClipSection(st)
+        if (playlist == null) ClipSection(st, enabled = !running)
 
         if (running) {
             val p = progress as Progress.Running
@@ -162,21 +231,12 @@ fun DownloadScreen(
         } else {
             Button(
                 onClick = {
-                    DownloadService.reset(if (isAudio) Kind.AUDIO else Kind.VIDEO)
-                    val i = info
-                    val sec = st.section()
-                    val pl = playlist
-                    DownloadService.start(
-                        context, url.trim(), isAudio,
-                        if (isAudio) format.name else quality.name,
-                        title = i?.title, uploader = i?.uploader,
-                        duration = i?.duration, thumbnail = i?.thumbnail,
-                        sectionStart = sec?.startSec ?: -1,
-                        sectionEnd = sec?.endSec ?: -1,
-                        playlistFolder = pl?.folderName(),
-                        playlistItems = if (pl != null) plSelection.sorted().toIntArray() else null,
-                        playlistTitle = pl?.title,
-                    )
+                    // سؤالُ السجلِّ أوّلاً: رابطٌ نُزِّلَ ونجحَ من قبلُ لا يُعادُ
+                    // تنزيلُه صامتاً — بياناتٌ وزمنٌ ومساحةٌ تُنفَقُ على ما في اليد
+                    scope.launch {
+                        val previous = vm.findPrevious(url.trim(), isAudio)
+                        if (previous != null) already = previous else start()
+                    }
                 },
                 enabled = enabled && url.isNotBlank() &&
                     (!clipOn || st.section() != null) &&
@@ -419,14 +479,14 @@ private fun DoneCard(done: Progress.Done, isAudio: Boolean, onOpenGallery: () ->
  * المستخدمِ ولا سؤال.
  */
 @Composable
-private fun ClipSection(st: SectionState) {
-    val enabled by st.clipEnabled.collectAsStateWithLifecycle()
+private fun ClipSection(st: SectionState, enabled: Boolean = true) {
+    val clipOn by st.clipEnabled.collectAsStateWithLifecycle()
     val start by st.clipStart.collectAsStateWithLifecycle()
     val end by st.clipEnd.collectAsStateWithLifecycle()
 
     val startOk = start.isBlank() || parseClock(start) != null
     val endOk = end.isBlank() || parseClock(end) != null
-    val rangeOk = !enabled || st.section() != null
+    val rangeOk = !clipOn || st.section() != null
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
@@ -436,13 +496,15 @@ private fun ClipSection(st: SectionState) {
         ) {
             Text(stringResource(R.string.clip_title), Modifier.weight(1f),
                 style = MaterialTheme.typography.labelLarge)
-            Switch(checked = enabled, onCheckedChange = { st.clipEnabled.value = it })
+            Switch(checked = clipOn, enabled = enabled,
+                onCheckedChange = { st.clipEnabled.value = it })
         }
 
-        if (enabled) {
+        if (clipOn) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = start,
+                    enabled = enabled,
                     onValueChange = { st.clipStart.value = it },
                     label = { Text(stringResource(R.string.clip_from)) },
                     placeholder = { Text("0:00") },
@@ -452,6 +514,7 @@ private fun ClipSection(st: SectionState) {
                 )
                 OutlinedTextField(
                     value = end,
+                    enabled = enabled,
                     onValueChange = { st.clipEnd.value = it },
                     label = { Text(stringResource(R.string.clip_to)) },
                     placeholder = { Text("1:30") },
