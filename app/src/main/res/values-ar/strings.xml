@@ -197,4 +197,8 @@
     <string name="player_resume_hint">موقوفٌ عندَ موضعِك الأخير — اضغط تشغيلاً لتُكمِل.</string>
     <string name="player_play_all">شغّل القائمة كلَّها</string>
     <string name="notif_channel_player">المشغّل الصوتيّ</string>
+    <string name="vfmt_best">الأصل — بلا إعادة تغليف</string>
+    <string name="vfmt_mp4">MP4</string>
+    <string name="vfmt_webm">WEBM</string>
+    <string name="vfmt_mkv">MKV</string>
 </resources>

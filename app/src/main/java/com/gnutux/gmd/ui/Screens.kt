@@ -42,6 +42,7 @@ import com.gnutux.gmd.download.Downloader.Kind
 import com.gnutux.gmd.download.Downloader.Phase
 import com.gnutux.gmd.download.Progress
 import com.gnutux.gmd.download.Quality
+import com.gnutux.gmd.download.VideoFormat
 import com.gnutux.gmd.player.PlayerService
 import com.gnutux.gmd.update.Updater
 import kotlinx.coroutines.launch
@@ -89,6 +90,7 @@ fun DownloadScreen(
     val st = vm.section(isAudio)
     val url by st.url.collectAsStateWithLifecycle()
     val quality by st.quality.collectAsStateWithLifecycle()
+    val container by st.videoFormat.collectAsStateWithLifecycle()
     val format by st.audioFormat.collectAsStateWithLifecycle()
     val info by st.info.collectAsStateWithLifecycle()
     val clipOn by st.clipEnabled.collectAsStateWithLifecycle()
@@ -107,6 +109,7 @@ fun DownloadScreen(
         DownloadService.start(
             context, st.url.value.trim(), isAudio,
             if (isAudio) st.audioFormat.value.name else st.quality.value.name,
+            container = if (isAudio) null else st.videoFormat.value.name,
             title = i?.title, uploader = i?.uploader,
             duration = i?.duration, thumbnail = i?.thumbnail,
             sectionStart = sec?.startSec ?: -1,
@@ -194,6 +197,22 @@ fun DownloadScreen(
                         enabled = !running,
                         onClick = { st.quality.value = q },
                         label = { Text(stringResource(labelOf(q))) },
+                    )
+                }
+            }
+        }
+
+        // حاويةُ الفيديو: كانَ القسمُ يفرضُ MP4 بلا خيار، والصوتُ فيه ستُّ صيغ.
+        // وWEBM أخفُّ وMKV يقبلُ كلَّ ترميزٍ فلا يُعادُ تغليفُ شيءٍ لأجلِه.
+        if (!isAudio) {
+            Text(stringResource(R.string.format), style = MaterialTheme.typography.labelLarge)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                VideoFormat.entries.forEach { f ->
+                    FilterChip(
+                        selected = container == f,
+                        enabled = !running,
+                        onClick = { st.videoFormat.value = f },
+                        label = { Text(stringResource(vlabelOf(f))) },
                     )
                 }
             }
@@ -705,6 +724,14 @@ private fun phaseLabel(phase: Phase) = when (phase) {
     Phase.CONVERTING -> R.string.phase_converting
     Phase.MERGING -> R.string.phase_merging
     Phase.SAVING -> R.string.phase_saving
+}
+
+/** اسمُ حاويةِ الفيديو كما يراها المستخدم. */
+private fun vlabelOf(f: VideoFormat) = when (f) {
+    VideoFormat.BEST -> R.string.vfmt_best
+    VideoFormat.MP4 -> R.string.vfmt_mp4
+    VideoFormat.WEBM -> R.string.vfmt_webm
+    VideoFormat.MKV -> R.string.vfmt_mkv
 }
 
 private fun labelOf(q: Quality) = when (q) {

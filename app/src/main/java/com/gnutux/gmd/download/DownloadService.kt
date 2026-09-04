@@ -73,6 +73,7 @@ data class JobInfo(
     val entryId: Long,
     val url: String,
     val choice: String,
+    val container: String?,
     val playlistTitle: String?,
     val playlistItems: List<Int>,
     val sectionStart: Int?,
@@ -100,6 +101,7 @@ class DownloadService : Service() {
         val url: String,
         val isAudio: Boolean,
         val choice: String,
+        val container: String?,
         val title: String?,
         val uploader: String?,
         val duration: String?,
@@ -159,6 +161,7 @@ class DownloadService : Service() {
             url = url,
             isAudio = isAudio,
             choice = choice,
+            container = intent.getStringExtra(EXTRA_CONTAINER),
             title = intent.getStringExtra(EXTRA_TITLE),
             uploader = intent.getStringExtra(EXTRA_UPLOADER),
             duration = intent.getStringExtra(EXTRA_DURATION),
@@ -185,6 +188,7 @@ class DownloadService : Service() {
             entryId = now,
             url = url,
             choice = choice,
+            container = attempt.container,
             playlistTitle = attempt.playlistTitle,
             playlistItems = attempt.playlist?.items.orEmpty(),
             sectionStart = attempt.section?.startSec,
@@ -201,6 +205,8 @@ class DownloadService : Service() {
         } else {
             Job.Video(url,
                 runCatching { Quality.valueOf(choice) }.getOrDefault(Quality.P1080),
+                runCatching { VideoFormat.valueOf(attempt.container.orEmpty()) }
+                    .getOrDefault(VideoFormat.MP4),
                 attempt.section, attempt.playlist)
         }
 
@@ -294,7 +300,8 @@ class DownloadService : Service() {
                 HistoryEntry(
                     id = runner.entryId, url = a.url, title = a.title, uploader = a.uploader,
                     duration = a.duration, thumbnail = a.thumbnail, isAudio = a.isAudio,
-                    choice = a.choice, outcome = Outcome.RUNNING, error = null,
+                    choice = a.choice, container = a.container,
+                    outcome = Outcome.RUNNING, error = null,
                     savedUri = null, savedName = null, savedPath = null,
                     timestamp = runner.entryId,
                     sectionStart = a.section?.startSec, sectionEnd = a.section?.endSec,
@@ -534,6 +541,7 @@ class DownloadService : Service() {
         private const val EXTRA_IS_AUDIO = "isAudio"
         private const val EXTRA_KIND = "kind"
         private const val EXTRA_CHOICE = "choice"
+        private const val EXTRA_CONTAINER = "container"
         private const val EXTRA_TITLE = "title"
         private const val EXTRA_UPLOADER = "uploader"
         private const val EXTRA_DURATION = "duration"
@@ -578,6 +586,7 @@ class DownloadService : Service() {
             url: String,
             isAudio: Boolean,
             choice: String,
+            container: String? = null,
             title: String? = null,
             uploader: String? = null,
             duration: String? = null,
@@ -593,6 +602,7 @@ class DownloadService : Service() {
                 .putExtra(EXTRA_URL, url)
                 .putExtra(EXTRA_IS_AUDIO, isAudio)
                 .putExtra(EXTRA_CHOICE, choice)
+                .putExtra(EXTRA_CONTAINER, container)
                 .putExtra(EXTRA_TITLE, title)
                 .putExtra(EXTRA_UPLOADER, uploader)
                 .putExtra(EXTRA_DURATION, duration)

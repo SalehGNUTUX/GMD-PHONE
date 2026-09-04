@@ -16,6 +16,7 @@ import com.gnutux.gmd.download.MediaInfo
 import com.gnutux.gmd.download.PlaylistInfo
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Section
+import com.gnutux.gmd.download.VideoFormat
 import com.gnutux.gmd.GmdApp
 import com.gnutux.gmd.ToolsState
 import com.gnutux.gmd.media.MediaLibrary
@@ -85,6 +86,8 @@ class SectionState(
 ) {
     val url = MutableStateFlow("")
     val quality = MutableStateFlow(Quality.P1080)
+    /** حاويةُ الفيديو: MP4 افتراضاً لأنّها أوسعُ ما تقبلُه المشغّلاتُ والمعارض. */
+    val videoFormat = MutableStateFlow(VideoFormat.MP4)
     val audioFormat = MutableStateFlow(AudioFormat.MP3)
 
     /** ما يُمرَّرُ للخدمةِ ويُحفَظُ في السجلّ: صيغةُ الصوتِ أو جودةُ الفيديو. */
@@ -197,6 +200,7 @@ class SectionState(
             if (isAudio) audioFormat.value = AudioFormat.valueOf(info.choice)
             else quality.value = Quality.valueOf(info.choice)
         }
+        info.container?.let { c -> runCatching { videoFormat.value = VideoFormat.valueOf(c) } }
         setSection(info.sectionStart, info.sectionEnd)
         if (info.playlistItems.isNotEmpty()) {
             playlistSelection.value = info.playlistItems.toSet()

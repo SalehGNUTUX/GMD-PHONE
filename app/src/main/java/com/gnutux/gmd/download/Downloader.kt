@@ -66,6 +66,7 @@ sealed interface Job {
     data class Video(
         override val url: String,
         val quality: Quality,
+        val container: VideoFormat = VideoFormat.MP4,
         override val section: Section? = null,
         override val playlist: PlaylistJob? = null,
     ) : Job
@@ -101,6 +102,24 @@ enum class Quality(val selector: String, val sort: String?, val label: String) {
     P1080(CAPPED, "res:1080", "q1080"),
     P720(CAPPED, "res:720", "q720"),
     P480(CAPPED, "res:480", "q480"),
+}
+
+/**
+ * حاويةُ الفيديو الناتجة.
+ *
+ * والدمجُ لا الترميزُ من جديد: `--merge-output-format` يُعيدُ تغليفَ التيّارَين في
+ * حاويةٍ أخرى — عملُ ثوانٍ — بينما إعادةُ الترميزِ دقائقُ على الهاتفِ ونصيبٌ من
+ * البطّاريّةِ وخسارةٌ في الجودة. ولذلك تُفضَّلُ الصيغةُ في **الاختيارِ** أيضاً
+ * (‏`ext:` في ترتيبِ yt-dlp) فيُنتقى تيّارٌ لا يحتاجُ تغليفاً أصلاً.
+ *
+ * و[BEST] لا يفرضُ شيئاً: يأخذُ ما يُعطيه الموقعُ كما هو، وهو أسرعُ ما يكون.
+ */
+enum class VideoFormat(val ext: String?, val sortKey: String?) {
+    BEST(null, null),
+    MP4("mp4", "ext:mp4"),
+    WEBM("webm", "ext:webm"),
+    // مصفوفة Matroska تقبلُ كلَّ ترميزٍ فلا تحتاجُ تفضيلاً في الاختيار
+    MKV("mkv", null),
 }
 
 enum class AudioFormat(val ext: String) {
@@ -312,8 +331,11 @@ object Downloader {
             when (job) {
                 is Job.Video -> {
                     addOption("-f", job.quality.selector)
-                    job.quality.sort?.let { addOption("-S", it) }
-                    addOption("--merge-output-format", "mp4")
+                    // ترتيبٌ واحدٌ يجمعُ القيدَين: yt-dlp يقبلُ `-S` مرّةً واحدةً
+                    // بقائمةٍ مفصولةٍ بفواصل، وتكرارُ الخيارِ يُلغي أوّلَه
+                    val sort = listOfNotNull(job.quality.sort, job.container.sortKey)
+                    if (sort.isNotEmpty()) addOption("-S", sort.joinToString(","))
+                    job.container.ext?.let { addOption("--merge-output-format", it) }
                 }
                 is Job.Audio -> {
                     addOption("--extract-audio")

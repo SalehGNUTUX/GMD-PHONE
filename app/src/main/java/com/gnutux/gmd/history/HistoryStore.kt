@@ -34,6 +34,8 @@ data class HistoryEntry(
     val isAudio: Boolean,
     /** اسمُ ثابتِ الجودةِ أو الصيغةِ كما اختارَه المستخدم، لإعادةِ المحاولةِ بمثلِه. */
     val choice: String,
+    /** حاويةُ الفيديو المطلوبة (‏MP4 أو WEBM…)، وللصوتِ لا معنى لها. */
+    val container: String? = null,
     val outcome: Outcome,
     val error: String?,
     val savedUri: String?,
@@ -61,6 +63,7 @@ data class HistoryEntry(
         putOpt("thumbnail", thumbnail)
         put("isAudio", isAudio)
         put("choice", choice)
+        putOpt("container", container)
         put("outcome", outcome.name)
         putOpt("error", error)
         putOpt("savedUri", savedUri)
@@ -85,6 +88,7 @@ data class HistoryEntry(
                 thumbnail = o.optStringOrNull("thumbnail"),
                 isAudio = o.optBoolean("isAudio"),
                 choice = o.optString("choice"),
+                container = o.optStringOrNull("container"),
                 outcome = runCatching { Outcome.valueOf(o.optString("outcome")) }
                     .getOrDefault(Outcome.FAILED),
                 error = o.optStringOrNull("error"),

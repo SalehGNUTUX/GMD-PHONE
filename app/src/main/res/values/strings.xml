@@ -197,4 +197,8 @@
     <string name="player_resume_hint">Paused where you left off — press play to continue.</string>
     <string name="player_play_all">Play the whole playlist</string>
     <string name="notif_channel_player">Audio player</string>
+    <string name="vfmt_best">As-is — no remux</string>
+    <string name="vfmt_mp4">MP4</string>
+    <string name="vfmt_webm">WEBM</string>
+    <string name="vfmt_mkv">MKV</string>
 </resources>

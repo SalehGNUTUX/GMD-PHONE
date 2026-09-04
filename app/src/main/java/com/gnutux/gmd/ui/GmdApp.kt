@@ -33,6 +33,7 @@ import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.DownloadService
 import com.gnutux.gmd.download.Downloader
 import com.gnutux.gmd.download.Quality
+import com.gnutux.gmd.download.VideoFormat
 import com.gnutux.gmd.download.Progress
 import kotlinx.coroutines.launch
 import com.gnutux.gmd.media.MediaEntry
@@ -258,6 +259,10 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                         screen = Screen.Audio
                     } else {
                         runCatching { st.quality.value = Quality.valueOf(entry.choice) }
+                        // والحاويةُ كذلك: إعادةُ المحاولةِ بمثلِ ما طُلِبَ أوّلَ مرّة
+                        entry.container?.let { c ->
+                            runCatching { st.videoFormat.value = VideoFormat.valueOf(c) }
+                        }
                         screen = Screen.Video
                     }
                     DownloadService.reset(if (entry.isAudio) Downloader.Kind.AUDIO
