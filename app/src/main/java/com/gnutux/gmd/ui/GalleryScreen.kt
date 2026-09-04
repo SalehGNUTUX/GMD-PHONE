@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,7 +49,11 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
+fun GalleryScreen(
+    onTrim: (MediaEntry) -> Unit = {},
+    /** [onPlay] صفُّ التشغيلِ وموضعُ المقطعِ منه؛ للصوتِ وحدَه. */
+    onPlay: (List<MediaEntry>, Int) -> Unit = { _, _ -> },
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -122,9 +127,16 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
     val all = items
     // في الجذر تُعرَض الملفّاتُ المفردة، وداخلَ مجلَّدٍ تُعرَض عناصرُه وحدَها
     val open = openFolder
+    /** التبويب المعروض: المرئيّات أوّلاً ثمّ الصوتيّات. */
+    var audioTab by rememberSaveable { mutableStateOf(false) }
     val list = all?.filter {
-        if (open == null) it.folder == null
+        if (open == null) it.folder == null && it.isAudio == audioTab
         else it.folder == open.first && it.isAudio == open.second
+    }?.let { visible ->
+        // داخلَ قائمةِ تشغيلٍ يُحتَرَمُ ترتيبُها: الاسمُ يبدأُ برقمِ العنصرِ فيكفي
+        // الترتيبُ به. والفرزُ بتاريخِ الإضافةِ كانَ يخلطُها — العنصرُ السادسُ قبلَ
+        // الأوّلِ لأنّ التنزيلَ لا يمضي على ترتيبِ القائمةِ دائماً.
+        if (open != null) visible.sortedBy { it.name } else visible
     }
     // المجلَّداتُ تُجمَّعُ على الاسمِ **والنوعِ** معاً
     val folders = remember(all) {
@@ -161,18 +173,38 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
+        // ── التبويبان ────────────────────────────────────────────────────────
+        if (open == null && !all.isNullOrEmpty()) {
+            TabRow(selectedTabIndex = if (audioTab) 1 else 0, containerColor = Color.Transparent) {
+                Tab(
+                    selected = !audioTab,
+                    onClick = { audioTab = false; selected = emptySet() },
+                    text = { Text(stringResource(R.string.gallery_videos)) },
+                    icon = { Icon(Icons.Filled.Movie, null) },
+                )
+                Tab(
+                    selected = audioTab,
+                    onClick = { audioTab = true; selected = emptySet() },
+                    text = { Text(stringResource(R.string.gallery_audios)) },
+                    icon = { Icon(Icons.Filled.MusicNote, null) },
+                )
+            }
+        }
+
         // ── شريطُ الإجراءات ──────────────────────────────────────────────────
-        if (list != null && (list.isNotEmpty() || folders.isNotEmpty())) {
+        if (list != null && (list.isNotEmpty() ||
+                (if (audioTab) audioFolders else videoFolders).isNotEmpty())) {
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                val tabFolders = if (audioTab) audioFolders else videoFolders
                 Text(
                     if (selected.isEmpty()) {
-                        if (open == null && folders.isNotEmpty())
+                        if (open == null && tabFolders.isNotEmpty())
                             stringResource(R.string.gallery_count_with_folders,
-                                list.size, folders.size)
+                                list.size, tabFolders.size)
                         else stringResource(R.string.gallery_count, list.size)
                     }
                     else stringResource(R.string.gallery_selected, selected.size),
@@ -246,6 +278,12 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
                         onClick = {
                             if (selected.isNotEmpty()) {
                                 selected = if (isSelected) selected - key else selected + key
+                            } else if (entry.isAudio) {
+                                // الصوتُ يُشغَّلُ في المشغّلِ الداخليّ، وما يُرى الآنَ
+                                // هو صفُّ التشغيل: نقرةٌ على مقطعٍ من قائمةٍ تُسمِعُها
+                                // كلَّها من موضعِه
+                                val queue = list.filter { it.isAudio }
+                                onPlay(queue, queue.indexOf(entry).coerceAtLeast(0))
                             } else {
                                 val ok = runCatching {
                                     context.startActivity(MediaLibrary.viewIntent(entry)); true
@@ -260,28 +298,42 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
                 if (open != null) {
                     list.forEach { row(it) }
                 } else {
-                    // في الجذرِ قسمانِ: المرئيّاتُ والصوتيّات، وفي كلٍّ منهما قوائمُ
-                    // تشغيلِه وملفّاتُه المفردة. وكانَ الكلُّ مُلقًى في قائمةٍ واحدةٍ
-                    // فيضيعُ مقطعٌ صوتيٌّ بينَ عشراتِ المرئيّات.
-                    val videos = list.filter { !it.isAudio }
-                    val audios = list.filter { it.isAudio }
-                    if (videoFolders.isNotEmpty() || videos.isNotEmpty()) {
-                        GroupHeader(R.string.gallery_videos, Icons.Filled.Movie)
-                        videoFolders.forEach { (key, entries) ->
-                            FolderCard(key.first, entries) {
-                                openFolder = key; selected = emptySet()
+                    // تبويبانِ في الأعلى لا قسمانِ متتابعان: كانت الصوتيّاتُ أسفلَ
+                    // كلِّ المرئيّاتِ فلا تُبلَغُ إلّا بتمريرٍ طويل.
+                    val tabFolders = if (audioTab) audioFolders else videoFolders
+                    if (tabFolders.isNotEmpty() || list.isNotEmpty()) {
+                        // وفي كلِّ تبويبٍ قسمانِ بعنوانَيهما: قوائمُ التشغيلِ ثمّ
+                        // المقاطعُ المفردة
+                        if (tabFolders.isNotEmpty()) {
+                            GroupHeader(R.string.gallery_playlists, Icons.Filled.PlaylistPlay,
+                                tabFolders.size)
+                            tabFolders.forEach { (key, entries) ->
+                                FolderCard(
+                                    name = key.first,
+                                    entries = entries,
+                                    // القائمةُ الصوتيّةُ تُسمَعُ كلُّها بنقرةٍ واحدةٍ
+                                    // بترتيبِها — والاسمُ يبدأُ برقمِ العنصرِ فيكفي
+                                    onPlayAll = if (key.second) {
+                                        { onPlay(entries.sortedBy { it.name }, 0) }
+                                    } else null,
+                                    onOpen = { openFolder = key; selected = emptySet() },
+                                )
                             }
                         }
-                        videos.forEach { row(it) }
-                    }
-                    if (audioFolders.isNotEmpty() || audios.isNotEmpty()) {
-                        GroupHeader(R.string.gallery_audios, Icons.Filled.MusicNote)
-                        audioFolders.forEach { (key, entries) ->
-                            FolderCard(key.first, entries) {
-                                openFolder = key; selected = emptySet()
-                            }
+                        if (list.isNotEmpty()) {
+                            GroupHeader(R.string.gallery_singles,
+                                if (audioTab) Icons.Filled.MusicNote else Icons.Filled.Movie,
+                                list.size)
+                            list.forEach { row(it) }
                         }
-                        audios.forEach { row(it) }
+                    } else {
+                        Card(Modifier.fillMaxWidth()) {
+                            Text(
+                                stringResource(R.string.gallery_empty),
+                                Modifier.padding(18.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
                 }
             }
@@ -333,21 +385,33 @@ fun GalleryScreen(onTrim: (MediaEntry) -> Unit = {}) {
 
 /** عنوانُ قسمٍ في المعرض: المرئيّاتُ أو الصوتيّات. */
 @Composable
-private fun GroupHeader(label: Int, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+private fun GroupHeader(
+    label: Int,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    count: Int? = null,
+) {
     Row(
         Modifier.fillMaxWidth().padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-        Text(stringResource(label), style = MaterialTheme.typography.titleSmall)
+        Text(
+            if (count != null) "${stringResource(label)}  ·  $count" else stringResource(label),
+            style = MaterialTheme.typography.titleSmall,
+        )
         HorizontalDivider(Modifier.weight(1f))
     }
 }
 
 /** مجلَّدُ قائمةِ تشغيل: صورةُ أوّلِ عنصرٍ وعددُه ومجموعُ حجمِه. */
 @Composable
-private fun FolderCard(name: String, entries: List<MediaEntry>, onOpen: () -> Unit) {
+private fun FolderCard(
+    name: String,
+    entries: List<MediaEntry>,
+    onPlayAll: (() -> Unit)? = null,
+    onOpen: () -> Unit,
+) {
     val context = LocalContext.current
     val first = entries.maxByOrNull { it.addedSeconds } ?: return
     val thumb by produceState<Bitmap?>(null, first.uri) {
@@ -388,6 +452,12 @@ private fun FolderCard(name: String, entries: List<MediaEntry>, onOpen: () -> Un
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            onPlayAll?.let { play ->
+                IconButton(onClick = play) {
+                    Icon(Icons.Filled.PlayCircle, stringResource(R.string.player_play_all),
+                        tint = MaterialTheme.colorScheme.primary)
+                }
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant)

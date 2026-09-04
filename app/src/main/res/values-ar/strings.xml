@@ -186,4 +186,15 @@
     <string name="already_title">سبقَ تنزيلُه</string>
     <string name="already_message">هذا الرابطُ نُزِّلَ من قبلُ ونجح. أتُنزّلُه ثانيةً؟</string>
     <string name="already_again">نزّله ثانيةً</string>
+    <string name="player_title">المشغّل</string>
+    <string name="player_play">تشغيل</string>
+    <string name="player_pause">إيقاف مؤقّت</string>
+    <string name="player_next">التالي</string>
+    <string name="player_previous">السابق</string>
+    <string name="player_stop">إغلاق المشغّل</string>
+    <string name="player_queue">صفُّ التشغيل</string>
+    <string name="player_empty">لا مقطعَ في المشغّل. اختر مقطعاً صوتيّاً من المعرض.</string>
+    <string name="player_resume_hint">موقوفٌ عندَ موضعِك الأخير — اضغط تشغيلاً لتُكمِل.</string>
+    <string name="player_play_all">شغّل القائمة كلَّها</string>
+    <string name="notif_channel_player">المشغّل الصوتيّ</string>
 </resources>

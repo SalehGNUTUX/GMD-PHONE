@@ -6,6 +6,8 @@
     <!-- خدمة مُقدِّمة بإشعار: أندرويد يقتل العمل الخلفيّ بلا رحمة، والتنزيل لا ينجو بدونها -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- المشغّل الصوتيّ الداخليّ: الاستماع يُكمل حين يغادر المستخدم التطبيق -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- لا متجر يتولّى التحديث، فالبرنامج يثبّت حزمته بنفسه -->
@@ -75,6 +77,12 @@
             android:name=".media.TrimService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- المشغّل الصوتيّ: الاستماع لا يقف بمغادرة الشاشة ولا التطبيق -->
+        <service
+            android:name=".player.PlayerService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- تنزيل حزمة التحديث: خدمة مقدِّمة كي لا يموت في منتصفه حين يغادر
              المستخدم الواجهة، ويُستأنف من موضع الانقطاع لا من أوّله -->

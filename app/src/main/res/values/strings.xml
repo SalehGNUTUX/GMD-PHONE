@@ -186,4 +186,15 @@
     <string name="already_title">Already downloaded</string>
     <string name="already_message">This link was downloaded before and it succeeded. Download it again?</string>
     <string name="already_again">Download again</string>
+    <string name="player_title">Player</string>
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_next">Next</string>
+    <string name="player_previous">Previous</string>
+    <string name="player_stop">Close the player</string>
+    <string name="player_queue">Queue</string>
+    <string name="player_empty">Nothing is loaded. Pick an audio file from the gallery.</string>
+    <string name="player_resume_hint">Paused where you left off — press play to continue.</string>
+    <string name="player_play_all">Play the whole playlist</string>
+    <string name="notif_channel_player">Audio player</string>
 </resources>

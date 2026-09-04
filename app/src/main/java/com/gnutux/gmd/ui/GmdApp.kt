@@ -37,8 +37,10 @@ import com.gnutux.gmd.download.Progress
 import com.gnutux.gmd.media.MediaEntry
 import com.gnutux.gmd.media.Trimmer
 import com.gnutux.gmd.media.TrimService
+import com.gnutux.gmd.player.PlayerService
+import com.gnutux.gmd.player.Track
 
-enum class Screen { Menu, Video, Audio, Trim, Gallery, History, Info, Settings }
+enum class Screen { Menu, Video, Audio, Trim, Gallery, Player, History, Info, Settings }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +52,7 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
     // حالةُ كلِّ قسمٍ على حدة: تنزيلانِ قد يجريانِ معاً
     val progress by DownloadService.progress.collectAsStateWithLifecycle()
     val trim by TrimService.progress.collectAsStateWithLifecycle()
+    val player by PlayerService.state.collectAsStateWithLifecycle()
     val update by vm.update.collectAsStateWithLifecycle()
 
     // رابطٌ وصل من ورقة المشاركة: يملأ الحقل ويقفز إلى شاشة الفيديو مباشرةً،
@@ -68,6 +71,9 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
     // بإشعارِها بينما تُهدَمُ الشاشةُ ونموذجُها، فكانَ المستخدمُ يعودُ إلى حقلٍ
     // فارغٍ وشريطٍ ساكنٍ والتنزيلُ يجري
     LaunchedEffect(Unit) { vm.restoreRunningJobs() }
+
+    // وآخرُ ما استُمِعَ إليه يعودُ موقوفاً عندَ موضعِه، فنقرةٌ واحدةٌ تُكمِلُ ما بدأ
+    LaunchedEffect(Unit) { PlayerService.restore(context) }
 
     var confirmExit by remember { mutableStateOf(false) }
     /** قسمٌ طُلِبَ إليه رابطٌ جديدٌ وهو يعمل؛ يُسألُ صاحبُه قبلَ أن يُطمَسَ ما يجري. */
@@ -127,6 +133,7 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                             Screen.Audio -> stringResource(R.string.audio_title)
                             Screen.Trim -> stringResource(R.string.trim_title)
                             Screen.Gallery -> stringResource(R.string.gallery_title)
+                            Screen.Player -> stringResource(R.string.player_title)
                             Screen.History -> stringResource(R.string.history_title)
                             Screen.Info -> stringResource(R.string.info_title)
                             Screen.Settings -> stringResource(R.string.settings_title)
@@ -145,6 +152,13 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
             )
+        },
+        // المشغّلُ يبقى ظاهراً في كلِّ شاشةٍ ما دامَ فيه مقطع: الاستماعُ لا يُلغي
+        // التصفُّحَ ولا التنزيل
+        bottomBar = {
+            if (player.current != null && screen != Screen.Player) {
+                PlayerBar(player) { screen = Screen.Player }
+            }
         },
     ) { padding ->
         Column(
@@ -188,7 +202,16 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                     onOpenGallery = { screen = Screen.Gallery },
                 )
                 Screen.Trim -> TrimScreen(vm, trim, onOpenGallery = { screen = Screen.Gallery })
-                Screen.Gallery -> GalleryScreen(onTrim = { entry: MediaEntry ->
+                Screen.Player -> PlayerScreen(player)
+                Screen.Gallery -> GalleryScreen(
+                    onPlay = { queue: List<MediaEntry>, index: Int ->
+                        PlayerService.play(
+                            context,
+                            queue.map { Track(it.uri.toString(), it.name, it.durationMs) },
+                            index,
+                        )
+                    },
+                    onTrim = { entry: MediaEntry ->
                     // القصُّ من المعرضِ يبدأُ بالمادّةِ في اليد، فلا يُسأَلُ المستخدمُ
                     // عن ملفٍّ اختارَه لتوّه
                     TrimService.reset()
