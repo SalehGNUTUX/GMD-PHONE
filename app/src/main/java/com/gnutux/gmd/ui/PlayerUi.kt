@@ -3,6 +3,7 @@ package com.gnutux.gmd.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,7 +48,11 @@ fun PlayerBar(state: PlayerState, onOpen: () -> Unit) {
         shadowElevation = 8.dp,
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
-        Column(Modifier.fillMaxWidth()) {
+        // `Scaffold` لا يُزيحُ شريطَه السفليَّ عن شريطِ تنقُّلِ النظامِ من تلقائِه —
+        // يفعلُ ذلك في العلويِّ وحدَه — فكانَ المشغّلُ محجوباً تحتَ أزرارِ النظام.
+        // والإزاحةُ على المحتوى لا على السطحِ نفسِه، فيبقى اللونُ ممتدّاً خلفَ
+        // الشريطِ بدلَ أن ينقطعَ دونَه.
+        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             // خيطُ التقدُّمِ على حافّةِ الشريطِ لا شريطٌ منفصل: أضيقُ ما يكفي ليُرى
             val fraction = if (state.durationMs > 0)
                 (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f) else 0f

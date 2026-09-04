@@ -34,8 +34,8 @@ android {
         // 24 هو أدنى ما تدعمه مكتبة yt-dlp لأندرويد (تُضمّن بايثون)
         minSdk = 24
         targetSdk = 36
-        versionCode = 9
-        versionName = "26.9.0-beta.8"
+        versionCode = 10
+        versionName = "26.9.0-beta.9"
         resourceConfigurations += listOf("ar", "en")
     }
 
