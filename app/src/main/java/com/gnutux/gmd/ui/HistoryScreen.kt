@@ -44,7 +44,11 @@ private enum class Filter { ALL, SUCCESS, FAILED }
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(onRetry: (HistoryEntry) -> Unit) {
+fun HistoryScreen(
+    onRetry: (HistoryEntry) -> Unit,
+    /** [onPlay] مدخلٌ صوتيٌّ ناجح: يُسلَّمُ للمشغّلِ الداخليِّ لا لمشغّلِ النظام. */
+    onPlay: (HistoryEntry) -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -141,6 +145,12 @@ fun HistoryScreen(onRetry: (HistoryEntry) -> Unit) {
                         when {
                             selected.isNotEmpty() ->
                                 selected = if (isSelected) selected - entry.id else selected + entry.id
+                            // الصوتُ الناجحُ — مفرداً كانَ أو قائمةً — إلى المشغّلِ
+                            // الداخليّ: القائمةُ تُسمَعُ كلُّها بترتيبِها، ومدخلُها
+                            // في السجلِّ واحدٌ بمجلَّدِها فلا عنوانَ لكلِّ ملفٍّ فيه
+                            entry.outcome == Outcome.SUCCESS && entry.isAudio &&
+                                (entry.savedUri != null || entry.savedPath != null) ->
+                                onPlay(entry)
                             entry.outcome == Outcome.SUCCESS && entry.savedUri != null &&
                                 !entry.isPlaylist -> {
                                 val ok = runCatching {

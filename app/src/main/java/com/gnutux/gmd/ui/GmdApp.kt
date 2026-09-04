@@ -34,6 +34,7 @@ import com.gnutux.gmd.download.DownloadService
 import com.gnutux.gmd.download.Downloader
 import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Progress
+import kotlinx.coroutines.launch
 import com.gnutux.gmd.media.MediaEntry
 import com.gnutux.gmd.media.Trimmer
 import com.gnutux.gmd.media.TrimService
@@ -75,6 +76,8 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
     // وآخرُ ما استُمِعَ إليه يعودُ موقوفاً عندَ موضعِه، فنقرةٌ واحدةٌ تُكمِلُ ما بدأ
     LaunchedEffect(Unit) { PlayerService.restore(context) }
 
+    val scope = rememberCoroutineScope()
+    val goneLabel = stringResource(R.string.gallery_no_player)
     var confirmExit by remember { mutableStateOf(false) }
     /** قسمٌ طُلِبَ إليه رابطٌ جديدٌ وهو يعمل؛ يُسألُ صاحبُه قبلَ أن يُطمَسَ ما يجري. */
     var busySection by remember { mutableStateOf<Screen?>(null) }
@@ -226,7 +229,16 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                     )
                     screen = Screen.Trim
                 })
-                Screen.History -> HistoryScreen(onRetry = { entry ->
+                Screen.History -> HistoryScreen(
+                    onPlay = { entry ->
+                        // صفٌّ من مجلَّدِ القائمةِ مرتَّباً، أو المقطعُ وحدَه
+                        scope.launch {
+                            val queue = vm.queueFor(entry)
+                            if (queue.isNotEmpty()) PlayerService.play(context, queue, 0)
+                            else Toast.makeText(context, goneLabel, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    onRetry = { entry ->
                     // إعادةُ المحاولةِ بالجودةِ نفسِها: أنفعُ ما في السجلّ، فإغلاقُ
                     // بطاقةِ الخطأِ كان يُضيعُ الرابطَ وسببَ الفشلِ معاً.
                     val kind = if (entry.isAudio) Downloader.Kind.AUDIO else Downloader.Kind.VIDEO

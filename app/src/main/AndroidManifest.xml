@@ -36,6 +36,14 @@
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.GMD">
 
+        <!-- الرخصة والمطوّر في بيانات الحزمة نفسها: مثبِّت أندرويد لا حقلَ فيه
+             لهما، لكنّ أدوات الفحص والمتاجر البديلة تقرأ هذه — والبطاقة الكاملة
+             في fastlane/metadata/android/ يقرأها F-Droid وما يشبهه -->
+        <meta-data android:name="org.gnutux.gmd.license" android:value="GPL-3.0-or-later" />
+        <meta-data android:name="org.gnutux.gmd.developer" android:value="SalehGNUTUX" />
+        <meta-data android:name="org.gnutux.gmd.source"
+            android:value="https://github.com/SalehGNUTUX/GMD-PHONE" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

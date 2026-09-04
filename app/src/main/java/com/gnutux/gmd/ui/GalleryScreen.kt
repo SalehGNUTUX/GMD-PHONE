@@ -243,7 +243,11 @@ fun GalleryScreen(
                 horizontalArrangement = Arrangement.Center,
             ) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) }
 
-            list.isEmpty() -> Card(Modifier.fillMaxWidth()) {
+            // «فارغ» تُقاسُ بالمقاطعِ **وقوائمِ التشغيلِ** معاً: تبويبُ الصوتيّاتِ قد
+            // لا يكونُ فيه مقطعٌ مفردٌ وفيه قائمتان، فقياسُ المفرداتِ وحدَها كانَ
+            // يبتلعُ القوائمَ ويقولُ لصاحبِها لا شيءَ هنا وهي أمامَه في العدّاد
+            list.isEmpty() && (if (audioTab) audioFolders else videoFolders).isEmpty() ->
+            Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(R.string.gallery_empty),
                         style = MaterialTheme.typography.titleSmall)

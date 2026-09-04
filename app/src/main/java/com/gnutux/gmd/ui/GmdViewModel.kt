@@ -18,7 +18,9 @@ import com.gnutux.gmd.download.Quality
 import com.gnutux.gmd.download.Section
 import com.gnutux.gmd.GmdApp
 import com.gnutux.gmd.ToolsState
+import com.gnutux.gmd.media.MediaLibrary
 import com.gnutux.gmd.media.Trimmer
+import com.gnutux.gmd.player.Track
 import com.gnutux.gmd.update.UpdateDownload
 import com.gnutux.gmd.update.UpdateService
 import com.gnutux.gmd.update.Updater
@@ -291,6 +293,30 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
         return HistoryStore.all(getApplication()).firstOrNull {
             it.outcome == Outcome.SUCCESS && it.isAudio == isAudio && urlKey(it.url) == key
         }
+    }
+
+    /**
+     * صفُّ التشغيلِ الذي يخصُّ مدخلاً ناجحاً في السجلّ.
+     *
+     * ومدخلُ قائمةِ التشغيلِ مدخلٌ واحدٌ بمجلَّدِها لا سطرٌ لكلِّ ملفّ، فالصفُّ يُبنى
+     * من المعرضِ بمجلَّدِها مرتَّباً بالاسم — والاسمُ يبدأُ برقمِ العنصر — لا من
+     * عنوانِ آخرِ ملفٍّ حُفِظ. وإلّا شُغِّلَ مقطعٌ واحدٌ ممّا طلبَ صاحبُه سماعَه كلَّه.
+     */
+    suspend fun queueFor(entry: HistoryEntry): List<Track> {
+        if (!entry.isAudio) return emptyList()
+        val folder = entry.savedPath
+            ?.substringAfter("${android.os.Environment.DIRECTORY_MUSIC}/GMD/", "")
+            ?.trim('/')?.takeIf { it.isNotBlank() }
+        if (folder != null) {
+            val items = MediaLibrary.list(getApplication())
+                .filter { it.isAudio && it.folder == folder }
+                .sortedBy { it.name }
+            if (items.isNotEmpty()) {
+                return items.map { Track(it.uri.toString(), it.name, it.durationMs) }
+            }
+        }
+        val uri = entry.savedUri ?: return emptyList()
+        return listOf(Track(uri, entry.savedName ?: entry.title.orEmpty(), 0L))
     }
 
     private fun urlKey(url: String): String = runCatching {

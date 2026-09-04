@@ -1,0 +1,16 @@
+GMD is a free and open-source media downloader for Android, built on yt-dlp and ffmpeg. Both tools ship inside the package, so nothing is installed and no middleman server ever sees your links.
+
+Features:
+
+* Video and audio downloads at a quality or format of your choosing
+* Playlists, each saved into a folder of its own
+* Trim a part of a clip — before downloading, or from a file already on your device
+* A history of every attempt, with the reason a failed one failed
+* A built-in audio player that resumes where you left off
+* A gallery of what you downloaded, with sharing and deletion
+* Arabic and English, right-to-left aware
+* Self-updating: it checks its own releases and installs them
+
+Licence: GNU GPL v3 or later.
+Developer: SalehGNUTUX.
+Source: https://github.com/SalehGNUTUX/GMD-PHONE

@@ -42,6 +42,7 @@ import com.gnutux.gmd.download.Downloader.Kind
 import com.gnutux.gmd.download.Downloader.Phase
 import com.gnutux.gmd.download.Progress
 import com.gnutux.gmd.download.Quality
+import com.gnutux.gmd.player.PlayerService
 import com.gnutux.gmd.update.Updater
 import kotlinx.coroutines.launch
 
@@ -140,13 +141,22 @@ fun DownloadScreen(
                     previous.savedUri?.let { uri ->
                         TextButton(onClick = {
                             already = null
-                            runCatching {
-                                context.startActivity(
-                                    android.content.Intent(android.content.Intent.ACTION_VIEW)
-                                        .setDataAndType(android.net.Uri.parse(uri),
-                                            if (previous.isAudio) "audio/*" else "video/*")
-                                        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                )
+                            // الصوتُ إلى المشغّلِ الداخليِّ لا إلى مشغّلِ النظام،
+                            // وقائمةُ التشغيلِ تُسمَعُ كلُّها بترتيبِها لا مقطعاً منها
+                            scope.launch {
+                                val queue = vm.queueFor(previous)
+                                if (queue.isNotEmpty()) {
+                                    PlayerService.play(context, queue, 0)
+                                } else {
+                                    runCatching {
+                                        context.startActivity(
+                                            android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                                .setDataAndType(android.net.Uri.parse(uri),
+                                                    if (previous.isAudio) "audio/*" else "video/*")
+                                                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        )
+                                    }
+                                }
                             }
                         }) { Text(stringResource(R.string.play_file)) }
                     }

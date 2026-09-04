@@ -1,0 +1,1 @@
+26.9.0-beta.7: a built-in audio player that resumes where you left off, a gallery split into video and audio tabs, and playlist order kept.
