@@ -201,4 +201,18 @@
     <string name="vfmt_mp4">MP4</string>
     <string name="vfmt_webm">WEBM</string>
     <string name="vfmt_mkv">MKV</string>
+    <string name="gallery_my_playlists">My playlists</string>
+    <string name="gallery_add_to_playlist">Add to a playlist</string>
+    <string name="gallery_new_playlist">New playlist</string>
+    <string name="gallery_playlist_name">Playlist name</string>
+    <string name="gallery_create">Create</string>
+    <string name="gallery_added_to_playlist">Added to \u201c%1$s\u201d</string>
+    <string name="gallery_playlist_remove">Remove from the playlist</string>
+    <string name="gallery_playlist_up">Move up</string>
+    <string name="gallery_playlist_down">Move down</string>
+    <string name="gallery_playlist_delete">Delete the playlist</string>
+    <string name="gallery_playlist_delete_confirm">Delete \u201c%1$s\u201d? Its clips stay in the gallery — a playlist is an order, not a copy.</string>
+    <string name="gallery_playlist_rename">Rename</string>
+    <string name="gallery_playlist_empty">This playlist is empty — its clips may have been deleted from the gallery.</string>
+    <string name="gallery_playlist_hint">Pick single clips, then add them to a playlist of your own.</string>
 </resources>

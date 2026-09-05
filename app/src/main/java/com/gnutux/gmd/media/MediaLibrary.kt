@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -149,6 +151,9 @@ object MediaLibrary {
     /** صورةٌ مصغَّرةٌ من الملفِّ نفسِه — لا مِن الشبكة، فالمقطعُ صارَ محليّاً. */
     suspend fun thumbnail(context: Context, entry: MediaEntry): Bitmap? =
         withContext(Dispatchers.IO) {
+            // غلافُ الصوتِ محفوظٌ عندَنا: ملفُّ الصوتِ لا يحملُ صورةً في جوفِه،
+            // فلا يُخرِجُ منه النظامُ شيئاً مهما سُئل
+            CoverStore.get(context, entry.uri.toString())?.let { return@withContext it }
             runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     context.contentResolver.loadThumbnail(entry.uri, Size(512, 512), null)
@@ -161,6 +166,38 @@ object MediaLibrary {
                     )
                 }
             }.getOrNull()
+        }
+
+    /**
+     * صورةُ مقطعٍ من عنوانِه وحدَه — للمشغّلِ الذي لا يحملُ إلّا العنوان.
+     *
+     * و`loadThumbnail` يُخرِجُ غلافَ الصوتِ المدموجَ كما يُخرِجُ إطارَ المرئيِّ،
+     * لكنّه لم يوجد قبلَ أندرويد 10 وقد يخيبُ فيما بعدَها إن لم يكن للمادّةِ
+     * مصغَّرةٌ مُفهرَسة، فيبقى المُستخرِجُ طريقاً ثانياً يقرأُ الغلافَ من الملفِّ
+     * نفسِه.
+     */
+    suspend fun thumbnailOf(context: Context, uri: Uri): Bitmap? =
+        withContext(Dispatchers.IO) {
+            CoverStore.get(context, uri.toString())?.let { return@withContext it }
+
+            val indexed = runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                    context.contentResolver.loadThumbnail(uri, Size(512, 512), null)
+                else null
+            }.getOrNull()
+            if (indexed != null) return@withContext indexed
+
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                val art = retriever.embeddedPicture
+                if (art != null) BitmapFactory.decodeByteArray(art, 0, art.size)
+                else retriever.getFrameAtTime(0)
+            } catch (_: Throwable) {
+                null
+            } finally {
+                runCatching { retriever.release() }
+            }
         }
 
     /** يفتحُ المقطعَ في مشغّلِ النظام. */

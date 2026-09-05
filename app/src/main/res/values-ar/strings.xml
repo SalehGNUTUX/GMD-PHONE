@@ -201,4 +201,18 @@
     <string name="vfmt_mp4">MP4</string>
     <string name="vfmt_webm">WEBM</string>
     <string name="vfmt_mkv">MKV</string>
+    <string name="gallery_my_playlists">قوائمي</string>
+    <string name="gallery_add_to_playlist">أضِف إلى قائمة</string>
+    <string name="gallery_new_playlist">قائمةٌ جديدة</string>
+    <string name="gallery_playlist_name">اسمُ القائمة</string>
+    <string name="gallery_create">أنشئ</string>
+    <string name="gallery_added_to_playlist">أُضيفَ إلى «%1$s»</string>
+    <string name="gallery_playlist_remove">أزِله من القائمة</string>
+    <string name="gallery_playlist_up">إلى أعلى</string>
+    <string name="gallery_playlist_down">إلى أسفل</string>
+    <string name="gallery_playlist_delete">احذف القائمة</string>
+    <string name="gallery_playlist_delete_confirm">أتحذفُ «%1$s»؟ مقاطعُها تبقى في المعرض — فالقائمةُ ترتيبٌ لا نسخة.</string>
+    <string name="gallery_playlist_rename">غيّر الاسم</string>
+    <string name="gallery_playlist_empty">القائمةُ فارغة — لعلَّ مقاطعَها حُذِفَت من المعرض.</string>
+    <string name="gallery_playlist_hint">اختر مقاطعَ مفردةً ثمّ ضُمَّها في قائمةٍ من صنعِك.</string>
 </resources>

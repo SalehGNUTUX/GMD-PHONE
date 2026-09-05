@@ -194,7 +194,10 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
             }
 
             when (screen) {
-                Screen.Menu -> MenuScreen(onPick = { screen = it })
+                Screen.Menu -> MenuScreen(
+                    onPick = { screen = it },
+                    nowPlaying = player.current?.title?.takeIf { it.isNotBlank() },
+                )
                 Screen.Video -> DownloadScreen(
                     vm, progress[Downloader.Kind.VIDEO] ?: Progress.Idle,
                     isAudio = false, enabled = tools is ToolsState.Ready,
@@ -206,7 +209,8 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                     onOpenGallery = { screen = Screen.Gallery },
                 )
                 Screen.Trim -> TrimScreen(vm, trim, onOpenGallery = { screen = Screen.Gallery })
-                Screen.Player -> PlayerScreen(player)
+                Screen.Player -> PlayerScreen(player,
+                    onOpenGallery = { screen = Screen.Gallery })
                 Screen.Gallery -> GalleryScreen(
                     onPlay = { queue: List<MediaEntry>, index: Int ->
                         PlayerService.play(
@@ -332,13 +336,17 @@ private fun ToolsBanner(tools: ToolsState) {
 }
 
 @Composable
-private fun MenuScreen(onPick: (Screen) -> Unit) {
+private fun MenuScreen(onPick: (Screen) -> Unit, nowPlaying: String? = null) {
     data class Item(val screen: Screen, val icon: ImageVector, val label: Int)
     val items = listOf(
         Item(Screen.Video, Icons.Filled.Movie, R.string.menu_video),
         Item(Screen.Audio, Icons.Filled.MusicNote, R.string.menu_audio),
         Item(Screen.Trim, Icons.Filled.ContentCut, R.string.menu_trim),
         Item(Screen.Gallery, Icons.Filled.PhotoLibrary, R.string.menu_gallery),
+        // المشغّلُ بابٌ في القائمةِ لا شاشةٌ خلفَ شريطٍ سفليّ: كانَ لا يُبلَغُ إلّا
+        // بتشغيلِ مقطعٍ من المعرضِ ثمّ النقرِ على الشريط، فمن أغلقَه لم يجد طريقاً
+        // إلى ما كانَ يسمعُه
+        Item(Screen.Player, Icons.Filled.PlayCircle, R.string.player_title),
         Item(Screen.History, Icons.Filled.History, R.string.menu_history),
         Item(Screen.Info, Icons.Filled.Info, R.string.menu_info),
         Item(Screen.Settings, Icons.Filled.Settings, R.string.menu_settings),
@@ -358,7 +366,20 @@ private fun MenuScreen(onPick: (Screen) -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     Icon(item.icon, null, tint = MaterialTheme.colorScheme.primary)
-                    Text(stringResource(item.label), style = MaterialTheme.typography.titleMedium)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(stringResource(item.label),
+                            style = MaterialTheme.typography.titleMedium)
+                        // وتحتَ اسمِ المشغّلِ ما يُسمَعُ الآن، فيعرفُ صاحبُه أين تركَه
+                        // قبلَ أن يفتحَه
+                        if (item.screen == Screen.Player && nowPlaying != null) {
+                            Text(
+                                nowPlaying,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
         }

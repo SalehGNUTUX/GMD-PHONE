@@ -341,6 +341,11 @@ object Downloader {
                     addOption("--extract-audio")
                     addOption("--audio-format", job.format.ext)
                     if (job.format == AudioFormat.MP3) addOption("--audio-quality", "0")
+                    // الغلافُ صورةً إلى جانبِ المقطع، لا مدموجاً فيه: الدمجُ عملٌ
+                    // بعدَ المعالجةِ يفشلُ على بعضِ الصيغِ فيُعَدُّ التنزيلُ كلُّه
+                    // فاشلاً وقد كُتِبَ الملفُّ فعلاً. وكتابةُ الصورةِ إن خابت
+                    // فتحذيرٌ لا خطأ. و[CoverStore] يتبنّاها بعدَ الحفظِ ويمحوها.
+                    addOption("--write-thumbnail")
                 }
             }
         }
@@ -360,6 +365,7 @@ object Downloader {
                 }
             val produced = out.listFiles()
                 ?.filter { it.isFile && it.length() > 0 && !it.name.endsWith(".part") }
+                ?.filter { !IMAGE.containsMatchIn(it.name) }
                 ?.filter { it.name !in delivered }
                 ?.sortedBy { it.name }
                 .orEmpty()
@@ -401,6 +407,7 @@ object Downloader {
             if (!f.isFile || f.length() == 0L) return@forEach
             if (f.name in delivered) return@forEach
             if (WORKING.containsMatchIn(f.name)) return@forEach
+            if (IMAGE.containsMatchIn(f.name)) return@forEach
             if (prefixes.none { f.name.startsWith(it) }) return@forEach
             delivered.add(f.name)
             onFileReady(f)
@@ -409,6 +416,9 @@ object Downloader {
 
     /** لواحقُ عملٍ جارٍ أو قِطَعٍ لم تُجمَّع بعد. */
     private val WORKING = Regex("""\.(part|ytdl|temp|f\d+\.[a-z0-9]+)$""")
+
+    /** صورةُ الغلافِ ليست مقطعاً: تُتبنّى غلافاً ولا تُنقَلُ إلى المعرض. */
+    private val IMAGE = Regex("""\.(webp|jpe?g|png)$""", RegexOption.IGNORE_CASE)
 
     /**
      * يقتصُّ المقطعَ من ملفٍّ منزَّلٍ كاملاً.

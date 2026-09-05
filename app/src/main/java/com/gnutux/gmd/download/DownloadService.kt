@@ -17,6 +17,7 @@ import com.gnutux.gmd.R
 import com.gnutux.gmd.data.LocalePrefs
 import com.gnutux.gmd.download.Downloader.Kind
 import com.gnutux.gmd.download.Downloader.Phase
+import com.gnutux.gmd.media.CoverStore
 import com.gnutux.gmd.history.HistoryEntry
 import com.gnutux.gmd.history.HistoryStore
 import com.gnutux.gmd.history.Outcome
@@ -227,6 +228,9 @@ class DownloadService : Service() {
             val saver = launch {
                 for (f in ready) {
                     MediaStoreSaver.save(applicationContext, f, isAudio, folder).onSuccess {
+                        // الغلافُ نزلَ صورةً إلى جانبِ المقطع: يُتبنّى الآنَ وقد
+                        // صارَ للمقطعِ عنوانٌ في المعرضِ يُربَطُ به
+                        if (isAudio) CoverStore.adopt(applicationContext, f, it.uri)
                         lastEarly.set(it)
                         savedEarly.incrementAndGet()
                     }
@@ -261,7 +265,10 @@ class DownloadService : Service() {
                     var lastError: Throwable? = null
                     files.forEach { f ->
                         MediaStoreSaver.save(applicationContext, f, isAudio, folder).fold(
-                            onSuccess = { saved = it; count++ },
+                            onSuccess = {
+                                if (isAudio) CoverStore.adopt(applicationContext, f, it.uri)
+                                saved = it; count++
+                            },
                             onFailure = { lastError = it },
                         )
                     }
