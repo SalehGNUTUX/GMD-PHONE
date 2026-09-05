@@ -57,6 +57,7 @@ private fun UrlField(st: SectionState, enabled: Boolean = true) {
         onValueChange = st::setUrl,
         label = { Text(stringResource(R.string.enter_url)) },
         singleLine = true,
+        textStyle = centeredFieldStyle,
         // القسمُ يعملُ: الحقلُ مقفولٌ فلا يُكتَبُ فوقَ رابطٍ يُنزَّلُ الآنَ فيغيبَ
         // تقدُّمُه وما تمَّ من قائمتِه — والتنزيلُ يُكمِلُ في الخلفيّةِ لا يدري به
         enabled = enabled,
@@ -534,6 +535,7 @@ private fun ClipSection(st: SectionState, enabled: Boolean = true) {
                 OutlinedTextField(
                     value = start,
                     enabled = enabled,
+                    textStyle = centeredFieldStyle,
                     onValueChange = { st.clipStart.value = it },
                     label = { Text(stringResource(R.string.clip_from)) },
                     placeholder = { Text("0:00") },
@@ -544,6 +546,7 @@ private fun ClipSection(st: SectionState, enabled: Boolean = true) {
                 OutlinedTextField(
                     value = end,
                     enabled = enabled,
+                    textStyle = centeredFieldStyle,
                     onValueChange = { st.clipEnd.value = it },
                     label = { Text(stringResource(R.string.clip_to)) },
                     placeholder = { Text("1:30") },

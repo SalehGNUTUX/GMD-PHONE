@@ -215,4 +215,14 @@
     <string name="gallery_playlist_rename">Rename</string>
     <string name="gallery_playlist_empty">This playlist is empty — its clips may have been deleted from the gallery.</string>
     <string name="gallery_playlist_hint">Pick single clips, then add them to a playlist of your own.</string>
+    <string name="desc_video">Download video with quality choice</string>
+    <string name="desc_audio">Extract and download audio only</string>
+    <string name="desc_trim">Trim clip from URL or existing file</string>
+    <string name="desc_gallery">What you downloaded, in your save folders</string>
+    <string name="desc_player">Listen to what you downloaded</string>
+    <string name="desc_history">Every link tried — succeeded or failed — with its details and error</string>
+    <string name="desc_info">View video details before downloading</string>
+    <string name="desc_settings">Language, save paths, updates, icon</string>
+    <string name="cards_square">Square cards</string>
+    <string name="cards_list">List cards</string>
 </resources>

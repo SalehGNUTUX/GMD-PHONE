@@ -112,6 +112,7 @@ fun TrimScreen(vm: GmdViewModel, progress: TrimProgress, onOpenGallery: () -> Un
                 OutlinedTextField(
                     value = start,
                     onValueChange = { vm.trimStart.value = it },
+                    textStyle = centeredFieldStyle,
                     label = { Text(stringResource(R.string.clip_from)) },
                     placeholder = { Text("0:00") },
                     singleLine = true,
@@ -122,6 +123,7 @@ fun TrimScreen(vm: GmdViewModel, progress: TrimProgress, onOpenGallery: () -> Un
                 OutlinedTextField(
                     value = end,
                     onValueChange = { vm.trimEnd.value = it },
+                    textStyle = centeredFieldStyle,
                     label = { Text(stringResource(R.string.clip_to)) },
                     placeholder = { Text(MediaLibrary.formatDuration(src.durationMs) ?: "1:30") },
                     singleLine = true,

@@ -215,4 +215,14 @@
     <string name="gallery_playlist_rename">غيّر الاسم</string>
     <string name="gallery_playlist_empty">القائمةُ فارغة — لعلَّ مقاطعَها حُذِفَت من المعرض.</string>
     <string name="gallery_playlist_hint">اختر مقاطعَ مفردةً ثمّ ضُمَّها في قائمةٍ من صنعِك.</string>
+    <string name="desc_video">تنزيل فيديو باختيار الجودة</string>
+    <string name="desc_audio">استخراج وتنزيل الصوت فقط</string>
+    <string name="desc_trim">قص مقطع من رابط أو ملف موجود</string>
+    <string name="desc_gallery">ما نزّلتَه في مجلَّدَي الحفظ</string>
+    <string name="desc_player">استمع إلى ما نزّلتَه</string>
+    <string name="desc_history">كلّ رابط جُرِّب — نجح أو فشل — بمعلوماته وسبب فشله</string>
+    <string name="desc_info">عرض تفاصيل الفيديو قبل التنزيل</string>
+    <string name="desc_settings">اللغة، مسارات الحفظ، التحديثات، الأيقونة</string>
+    <string name="cards_square">بطاقات مربّعة</string>
+    <string name="cards_list">بطاقات مستطيلة</string>
 </resources>

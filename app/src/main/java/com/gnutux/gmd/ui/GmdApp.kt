@@ -20,6 +20,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -56,6 +61,8 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
     val trim by TrimService.progress.collectAsStateWithLifecycle()
     val player by PlayerService.state.collectAsStateWithLifecycle()
     val update by vm.update.collectAsStateWithLifecycle()
+    // شكلُ بطاقاتِ القائمة: مربَّعاتٌ اثنانِ في الصفِّ افتراضاً، كنسخةِ الحاسوب
+    val squareCards by vm.squareCards.collectAsStateWithLifecycle(initialValue = true)
 
     // رابطٌ وصل من ورقة المشاركة: يملأ الحقل ويقفز إلى شاشة الفيديو مباشرةً،
     // فالمستخدم شارك الرابط ليُنزّله لا ليعيد لصقه.
@@ -197,6 +204,8 @@ fun GmdApp(vm: GmdViewModel, incomingUrl: String?, onUrlConsumed: () -> Unit) {
                 Screen.Menu -> MenuScreen(
                     onPick = { screen = it },
                     nowPlaying = player.current?.title?.takeIf { it.isNotBlank() },
+                    square = squareCards,
+                    onToggleShape = { vm.setSquareCards(!squareCards) },
                 )
                 Screen.Video -> DownloadScreen(
                     vm, progress[Downloader.Kind.VIDEO] ?: Progress.Idle,
@@ -336,47 +345,141 @@ private fun ToolsBanner(tools: ToolsState) {
 }
 
 @Composable
-private fun MenuScreen(onPick: (Screen) -> Unit, nowPlaying: String? = null) {
-    data class Item(val screen: Screen, val icon: ImageVector, val label: Int)
+private fun MenuScreen(
+    onPick: (Screen) -> Unit,
+    nowPlaying: String? = null,
+    square: Boolean = true,
+    onToggleShape: () -> Unit = {},
+) {
+    // البطاقاتُ والأيقوناتُ والألوانُ كنسخةِ الحاسوب، فيستوي وجهُ البرنامجِ على
+    // الجهازَين: لكلِّ قسمٍ أيقونتُه في مربَّعٍ ملوَّنٍ ووصفٌ تحتَ اسمِه.
+    data class Item(
+        val screen: Screen,
+        val icon: ImageVector,
+        val label: Int,
+        val desc: Int,
+        val tint: Color,
+    )
     val items = listOf(
-        Item(Screen.Video, Icons.Filled.Movie, R.string.menu_video),
-        Item(Screen.Audio, Icons.Filled.MusicNote, R.string.menu_audio),
-        Item(Screen.Trim, Icons.Filled.ContentCut, R.string.menu_trim),
-        Item(Screen.Gallery, Icons.Filled.PhotoLibrary, R.string.menu_gallery),
+        Item(Screen.Video, Icons.Filled.LocalMovies, R.string.menu_video, R.string.desc_video,
+            Color(0xFFDC2626)),
+        Item(Screen.Audio, Icons.Filled.MusicNote, R.string.menu_audio, R.string.desc_audio,
+            Color(0xFFEA580C)),
+        Item(Screen.Trim, Icons.Filled.ContentCut, R.string.menu_trim, R.string.desc_trim,
+            Color(0xFF059669)),
+        Item(Screen.Gallery, Icons.Filled.VideoLibrary, R.string.menu_gallery, R.string.desc_gallery,
+            Color(0xFF0D9488)),
         // المشغّلُ بابٌ في القائمةِ لا شاشةٌ خلفَ شريطٍ سفليّ: كانَ لا يُبلَغُ إلّا
         // بتشغيلِ مقطعٍ من المعرضِ ثمّ النقرِ على الشريط، فمن أغلقَه لم يجد طريقاً
         // إلى ما كانَ يسمعُه
-        Item(Screen.Player, Icons.Filled.PlayCircle, R.string.player_title),
-        Item(Screen.History, Icons.Filled.History, R.string.menu_history),
-        Item(Screen.Info, Icons.Filled.Info, R.string.menu_info),
-        Item(Screen.Settings, Icons.Filled.Settings, R.string.menu_settings),
+        Item(Screen.Player, Icons.Filled.GraphicEq, R.string.player_title, R.string.desc_player,
+            Color(0xFFC026D3)),
+        Item(Screen.History, Icons.Filled.History, R.string.menu_history, R.string.desc_history,
+            Color(0xFF7C3AED)),
+        Item(Screen.Info, Icons.Filled.Info, R.string.menu_info, R.string.desc_info,
+            Color(0xFF0284C7)),
+        Item(Screen.Settings, Icons.Filled.Settings, R.string.menu_settings, R.string.desc_settings,
+            Color(0xFF52525B)),
     )
+
+    /** مربَّعُ الأيقونةِ الملوَّن، مشترَكٌ بينَ الشكلَين. */
+    @Composable
+    fun IconTile(item: Item, size: Int) {
+        Box(
+            Modifier.size(size.dp).clip(RoundedCornerShape(12.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(item.tint, item.tint.copy(alpha = 0.75f))
+                    )
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(item.icon, null, tint = Color.White,
+                modifier = Modifier.size((size * 0.55f).dp))
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(stringResource(R.string.welcome), style = MaterialTheme.typography.headlineSmall)
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.welcome),
+                Modifier.weight(1f),
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            // تبديلُ الشكل: مربَّعانِ في الصفِّ أو مستطيلٌ في عمود
+            IconButton(onClick = onToggleShape) {
+                Icon(
+                    if (square) Icons.Filled.ViewAgenda else Icons.Filled.GridView,
+                    stringResource(if (square) R.string.cards_list else R.string.cards_square),
+                )
+            }
+        }
         Text(
             stringResource(R.string.share_hint),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(4.dp))
-        items.forEach { item ->
-            ElevatedCard(onClick = { onPick(item.screen) }, modifier = Modifier.fillMaxWidth()) {
+
+        if (square) {
+            // مربَّعانِ في كلِّ صفّ. والصفوفُ مبنيّةٌ باليدِ لا بشبكةٍ كسولة: الشاشةُ
+            // داخلَ تمريرٍ واحدٍ في القشرة، وارتفاعُ الشبكةِ غيرُ محدودٍ فيه فينهارُ
+            // قياسُها.
+            items.chunked(2).forEach { pair ->
                 Row(
-                    Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Icon(item.icon, null, tint = MaterialTheme.colorScheme.primary)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(stringResource(item.label),
-                            style = MaterialTheme.typography.titleMedium)
-                        // وتحتَ اسمِ المشغّلِ ما يُسمَعُ الآن، فيعرفُ صاحبُه أين تركَه
-                        // قبلَ أن يفتحَه
-                        if (item.screen == Screen.Player && nowPlaying != null) {
+                    pair.forEach { item ->
+                        ElevatedCard(
+                            onClick = { onPick(item.screen) },
+                            modifier = Modifier.weight(1f).aspectRatio(1f),
+                        ) {
+                            Column(
+                                Modifier.fillMaxSize().padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                IconTile(item, 44)
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    stringResource(item.label),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    if (item.screen == Screen.Player && nowPlaying != null)
+                                        nowPlaying else stringResource(item.desc),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                    // صفٌّ فيه عنصرٌ واحد: يبقى المربَّعُ مربَّعاً ولا يمتدُّ عرضَ الشاشة
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        } else {
+            items.forEach { item ->
+                ElevatedCard(onClick = { onPick(item.screen) }, modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        IconTile(item, 40)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(stringResource(item.label),
+                                style = MaterialTheme.typography.titleMedium)
                             Text(
-                                nowPlaying,
+                                if (item.screen == Screen.Player && nowPlaying != null)
+                                    nowPlaying else stringResource(item.desc),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }

@@ -358,6 +358,7 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
 
     val autoCheckUpdates = settings.autoCheckUpdates
     val allowPrerelease = settings.allowPrerelease
+    val squareCards = settings.squareCards
 
     fun loadYtDlpVersion() {
         viewModelScope.launch { _ytdlpVersion.value = Downloader.version(getApplication()) }
@@ -396,6 +397,7 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
     // ── التحديثُ الذاتيّ ───────────────────────────────────────────────────────
     fun setAutoCheck(value: Boolean) = viewModelScope.launch { settings.setAutoCheckUpdates(value) }
     fun setAllowPrerelease(value: Boolean) = viewModelScope.launch { settings.setAllowPrerelease(value) }
+    fun setSquareCards(value: Boolean) = viewModelScope.launch { settings.setSquareCards(value) }
 
     /** فحصٌ صامتٌ عند الإقلاع، لا يزعج المستخدم إن لم يكن هناك جديد. */
     fun checkForUpdatesOnLaunch() {

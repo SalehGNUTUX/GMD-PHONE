@@ -583,6 +583,7 @@ fun GalleryScreen(
                         onValueChange = { newName = it },
                         label = { Text(stringResource(R.string.gallery_playlist_name)) },
                         singleLine = true,
+                        textStyle = centeredFieldStyle,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -616,7 +617,8 @@ fun GalleryScreen(
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text(stringResource(R.string.gallery_playlist_name)) },
-                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, textStyle = centeredFieldStyle,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             },
             confirmButton = {
