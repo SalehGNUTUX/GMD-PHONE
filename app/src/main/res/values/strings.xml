@@ -228,4 +228,5 @@
     <string name="clock_hours">hh</string>
     <string name="clock_minutes">mm</string>
     <string name="clock_seconds">ss</string>
+    <string name="about_site">Project website</string>
 </resources>

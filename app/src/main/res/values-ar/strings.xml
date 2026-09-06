@@ -228,4 +228,5 @@
     <string name="clock_hours">س</string>
     <string name="clock_minutes">د</string>
     <string name="clock_seconds">ث</string>
+    <string name="about_site">موقع المشروع</string>
 </resources>

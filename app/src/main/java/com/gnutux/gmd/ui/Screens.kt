@@ -904,12 +904,22 @@ fun SettingsScreen(vm: GmdViewModel) {
 
         Text(stringResource(R.string.about_free), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        TextButton(onClick = {
-            runCatching {
-                context.startActivity(Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://github.com/SalehGNUTUX/GMD-PHONE")))
-            }
-        }) { Text(stringResource(R.string.about_repo)) }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // الموقعُ أوّلاً: هو وجهُ المشروعِ لمن لا يقرأُ شيفرةً، وفيه نسخةُ
+            // الحاسوبِ أيضاً
+            TextButton(onClick = {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://salehgnutux.github.io/GMD/")))
+                }
+            }) { Text(stringResource(R.string.about_site)) }
+            TextButton(onClick = {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://github.com/SalehGNUTUX/GMD-PHONE")))
+                }
+            }) { Text(stringResource(R.string.about_repo)) }
+        }
     }
 }
 
