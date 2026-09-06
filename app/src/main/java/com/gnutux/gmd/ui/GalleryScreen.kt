@@ -44,7 +44,11 @@ import com.gnutux.gmd.media.MediaEntry
 import com.gnutux.gmd.media.MediaLibrary
 import com.gnutux.gmd.player.PlaylistStore
 import com.gnutux.gmd.player.UserPlaylist
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** مهلةُ التراجعِ عن الحذفِ بالثواني: تكفي لإدراكِ الخطأِ ولا تُطيلُ انتظارَ من قصد. */
+private const val UNDO_SECONDS = 8
 
 /**
  * معرضُ ما نزّله GMD.
@@ -66,6 +70,15 @@ fun GalleryScreen(
     var items by remember { mutableStateOf<List<MediaEntry>?>(null) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var confirmDelete by remember { mutableStateOf(false) }
+    /**
+     * حذفٌ مؤجَّلٌ بمهلةِ تراجع.
+     *
+     * التأكيدُ وحدَه لا يكفي: من نقرَ «احذف» وهو ساهٍ لا يُنقِذُه سؤالٌ نقرَ عليه
+     * ساهياً أيضاً، وحذفُ MediaStore لا رجعةَ فيه على أكثرِ الأجهزة. فالمقاطعُ
+     * تختفي من المعرضِ فورَ التأكيدِ — فيرى صاحبُها أثرَ فعلِه — ولا تُمحى إلّا
+     * بعدَ المهلة، وزرُّ «تراجع» يُعيدُها مكانَها.
+     */
+    var pending by remember { mutableStateOf<List<MediaEntry>>(emptyList()) }
     var hasRead by remember { mutableStateOf(MediaLibrary.hasReadPermission(context)) }
     /**
      * المجلَّد المفتوح: قائمةُ تشغيلٍ يُتصفَّح داخلُها، أو `null` للجذر.
@@ -92,6 +105,7 @@ fun GalleryScreen(
     val noAppLabel = stringResource(R.string.gallery_no_player)
 
     suspend fun reload() { items = MediaLibrary.list(context) }
+
     fun reloadPlaylists() { playlists = PlaylistStore.load(context) }
 
     // موافقةُ النظامِ على الحذف: تعودُ نتيجتُها هنا فنُعيدُ القراءةَ ونخرجُ من التحديد
@@ -104,6 +118,21 @@ fun GalleryScreen(
                 Toast.makeText(context, deletedLabel, Toast.LENGTH_SHORT).show()
             }
             reload()
+        }
+    }
+
+    /** يمحو فعلاً بعدَ انقضاءِ المهلة، أو عندَ بدءِ حذفٍ جديدٍ قبلَ انقضائِها. */
+    suspend fun commitDelete(entries: List<MediaEntry>) {
+        if (entries.isEmpty()) return
+        when (val r = MediaLibrary.delete(context, entries)) {
+            is DeleteOutcome.Done -> {
+                Toast.makeText(context, deletedLabel, Toast.LENGTH_SHORT).show()
+                reload()
+            }
+            is DeleteOutcome.NeedsConsent ->
+                consent.launch(IntentSenderRequest.Builder(r.sender).build())
+            is DeleteOutcome.Failed ->
+                Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -145,13 +174,15 @@ fun GalleryScreen(
     LaunchedEffect(Unit) { reload() }
     LaunchedEffect(Unit) { reloadPlaylists() }
 
+    // المحذوفُ المعلَّقُ يغيبُ عن العرضِ فوراً، ويعودُ إن تراجعَ صاحبُه
+    val pendingUris = pending.map { it.uri.toString() }.toSet()
     val all = items
     // في الجذر تُعرَض الملفّاتُ المفردة، وداخلَ مجلَّدٍ تُعرَض عناصرُه وحدَها
     val open = openFolder
     /** التبويب المعروض: المرئيّات أوّلاً ثمّ الصوتيّات. */
     var audioTab by rememberSaveable { mutableStateOf(false) }
     val openPlaylist = playlists.firstOrNull { it.id == openUser }
-    val list = all?.let { entries ->
+    val list = all?.filterNot { it.uri.toString() in pendingUris }?.let { entries ->
         when {
             // قائمةُ المستخدمِ ترتيبُها من صنعِه، فتُرتَّبُ بعناوينِها لا بشيءٍ آخر،
             // ويسقطُ منها ما حُذِفَ من المعرض
@@ -488,26 +519,59 @@ fun GalleryScreen(
         }
     }
 
+    // شريطُ التراجع: يبقى ما دامَ الحذفُ معلَّقاً
+    if (pending.isNotEmpty()) {
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+            Row(
+                Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    stringResource(R.string.gallery_trashed, pending.size),
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = { pending = emptyList() }) {
+                    Text(stringResource(R.string.gallery_undo))
+                }
+            }
+        }
+    }
+
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text(stringResource(R.string.gallery_delete)) },
-            text = { Text(stringResource(R.string.gallery_delete_confirm, chosen.size)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.gallery_delete_confirm, chosen.size))
+                    Text(
+                        stringResource(R.string.gallery_trash_undo_hint, UNDO_SECONDS),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
+                    // حذفٌ سابقٌ ما زالَ في مهلتِه يُنفَّذُ الآنَ ولا يُنسى
+                    val earlier = pending
+                    pending = chosen
+                    selected = emptySet()
                     scope.launch {
-                        when (val r = MediaLibrary.delete(context, chosen)) {
-                            is DeleteOutcome.Done -> {
-                                selected = emptySet()
-                                Toast.makeText(context, deletedLabel, Toast.LENGTH_SHORT).show()
-                                reload()
-                            }
-                            is DeleteOutcome.NeedsConsent ->
-                                consent.launch(IntentSenderRequest.Builder(r.sender).build())
-                            is DeleteOutcome.Failed ->
-                                Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
-                        }
+                        if (earlier.isNotEmpty()) commitDelete(earlier)
+                        val doomed = chosen
+                        delay(UNDO_SECONDS * 1000L)
+                        // تراجعَ صاحبُه في أثناءِ المهلة، أو بدأَ حذفاً آخر
+                        if (pending !== doomed) return@launch
+                        pending = emptyList()
+                        commitDelete(doomed)
                     }
                 }) { Text(stringResource(R.string.gallery_delete)) }
             },

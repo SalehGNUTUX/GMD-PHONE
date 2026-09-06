@@ -229,4 +229,7 @@
     <string name="clock_minutes">د</string>
     <string name="clock_seconds">ث</string>
     <string name="about_site">موقع المشروع</string>
+    <string name="gallery_trashed">حُذِفَ %1$d — يمكنك التراجع</string>
+    <string name="gallery_undo">تراجع</string>
+    <string name="gallery_trash_undo_hint">لك %1$d ثوانٍ للتراجع بعدها، ثمّ يُمحى.</string>
 </resources>

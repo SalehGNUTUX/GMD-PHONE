@@ -229,4 +229,7 @@
     <string name="clock_minutes">mm</string>
     <string name="clock_seconds">ss</string>
     <string name="about_site">Project website</string>
+    <string name="gallery_trashed">%1$d deleted — you can undo</string>
+    <string name="gallery_undo">Undo</string>
+    <string name="gallery_trash_undo_hint">You have %1$d seconds to undo, then it is deleted.</string>
 </resources>
