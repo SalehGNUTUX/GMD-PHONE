@@ -225,4 +225,7 @@
     <string name="desc_settings">اللغة، مسارات الحفظ، التحديثات، الأيقونة</string>
     <string name="cards_square">بطاقات مربّعة</string>
     <string name="cards_list">بطاقات مستطيلة</string>
+    <string name="clock_hours">س</string>
+    <string name="clock_minutes">د</string>
+    <string name="clock_seconds">ث</string>
 </resources>

@@ -343,12 +343,25 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
     val trimStart = MutableStateFlow("")
     val trimEnd = MutableStateFlow("")
 
-    /** يُبدِّل مادّةَ الاقتصاص، ويُصفّر الحدَّين فلا يبقى حدُّ ملفٍّ على ملفٍّ آخر. */
+    /**
+     * يُبدِّل مادّةَ الاقتصاص، ويُصفّر الحدَّين فلا يبقى حدُّ ملفٍّ على ملفٍّ آخر.
+     *
+     * والحدُّ الأعلى يُملأُ بمدّةِ المقطعِ إن عرفَها النظام: القصُّ يبدأُ من مقطعٍ
+     * كاملٍ يُقلَّمُ طرفاه، فالمدّةُ هي المبدأُ الطبيعيُّ لا حقلٌ فارغٌ يُملأُ باليد.
+     * ومن أرادَ أقلَّ منها غيَّرَ الرقم.
+     */
     fun setTrimSource(source: Trimmer.Source?) {
         _trimSource.value = source
         trimStart.value = ""
-        trimEnd.value = ""
+        trimEnd.value = source?.durationMs
+            ?.takeIf { it > 0 }
+            ?.let { clockOf(it / 1000) }
+            .orEmpty()
     }
+
+    /** ثوانٍ إلى `H:MM:SS`، وهي الصيغةُ التي تقرؤها حقولُ الوقتِ الثلاثة. */
+    private fun clockOf(seconds: Long): String =
+        "%d:%02d:%02d".format(seconds / 3600, (seconds % 3600) / 60, seconds % 60)
 
     private val _ytdlpVersion = MutableStateFlow<String?>(null)
     val ytdlpVersion: StateFlow<String?> = _ytdlpVersion

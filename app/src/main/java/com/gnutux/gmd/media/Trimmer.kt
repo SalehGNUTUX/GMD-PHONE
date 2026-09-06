@@ -20,12 +20,36 @@ import java.io.File
  * تتفرّقُ وُسَطاؤه ولا تُصلَحُ علّةٌ في أحدِهما وتبقى في الآخر.
  *
  * ثنائيُّ ffmpeg تشحنُه مكتبةُ youtubedl-android في `nativeLibraryDir`، وهو مسارٌ
- * عامٌّ مستقرٌّ في أندرويد لا تخمينَ فيه.
+ * عامٌّ مستقرٌّ في أندرويد لا تخمينَ فيه. لكنّ الثنائيَّ وحدَه لا يعمل: مكتباتُه
+ * المشتركةُ — `libavcodec` وأخواتُها و`libc++_shared` — ليست في الحزمةِ أصلاً، بل
+ * في أرشيفٍ (`libffmpeg.zip.so`) تفكُّه المكتبةُ عندَ الإقلاعِ إلى مجلَّدِها،
+ * فيلزمُ تعريفُ `LD_LIBRARY_PATH` بمكانِها. انظر [libraryPath].
  */
 object Trimmer {
 
     /** اسمُ ثنائيِّ ffmpeg كما تشحنُه مكتبةُ youtubedl-android في jniLibs. */
     private const val FFMPEG_BIN = "libffmpeg.so"
+
+    /**
+     * مساراتُ المكتباتِ المشتركةِ التي فكَّتها المكتبةُ عندَ الإقلاع.
+     *
+     * تشغيلُ ffmpeg بلا هذا يسقطُ فوراً بـ:
+     * `CANNOT LINK EXECUTABLE ... library "libc++_shared.so" not found`.
+     * وهو ما كانَ يقعُ في كلِّ اقتصاص: yt-dlp يُشغِّلُ ffmpeg بهذه البيئةِ من داخلِ
+     * المكتبةِ فينجح، ونداؤنا المباشرُ لم يكن يرثُها فيسقط.
+     *
+     * والمجلَّداتُ تُقرَأُ ولا تُسمّى واحداً واحداً: المكتبةُ تفكُّ حزمةً لبايثون
+     * وأخرى لffmpeg وثالثةً لaria2c، وقد تزيدُ في إصدارٍ قادم.
+     */
+    private fun libraryPath(context: Context): String {
+        val packages = File(context.noBackupFilesDir, "youtubedl-android/packages")
+        val dirs = packages.listFiles()
+            ?.map { File(it, "usr/lib") }
+            ?.filter { it.isDirectory }
+            ?.map { it.absolutePath }
+            .orEmpty()
+        return (dirs + context.applicationInfo.nativeLibraryDir).joinToString(":")
+    }
 
     /** ما يجري الآن، ليُعرَضَ للمستخدمِ ويُلغى. */
     @Volatile private var current: Process? = null
@@ -163,7 +187,7 @@ object Trimmer {
         val ffmpeg = File(context.applicationInfo.nativeLibraryDir, FFMPEG_BIN)
         if (!ffmpeg.canExecute()) error("ffmpeg was not found to trim locally")
 
-        val process = ProcessBuilder(
+        val builder = ProcessBuilder(
             listOf(
                 ffmpeg.absolutePath, "-y",
                 "-ss", section.startClock(),
@@ -172,7 +196,9 @@ object Trimmer {
                 "-c", "copy",
                 output.absolutePath,
             )
-        ).redirectErrorStream(true).start()
+        ).redirectErrorStream(true)
+        builder.environment()["LD_LIBRARY_PATH"] = libraryPath(context)
+        val process = builder.start()
         current = process
 
         val span = (section.endSec - section.startSec).coerceAtLeast(1)

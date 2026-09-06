@@ -108,25 +108,19 @@ fun TrimScreen(vm: GmdViewModel, progress: TrimProgress, onOpenGallery: () -> Un
             val overrun = duration > 0 && endSec != null && endSec > duration
             val ready = endSec != null && endSec > startSec && !overrun
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ClockField(
+                    label = stringResource(R.string.clip_from),
                     value = start,
                     onValueChange = { vm.trimStart.value = it },
-                    textStyle = centeredFieldStyle,
-                    label = { Text(stringResource(R.string.clip_from)) },
-                    placeholder = { Text("0:00") },
-                    singleLine = true,
                     enabled = !running,
                     isError = !startOk,
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedTextField(
+                ClockField(
+                    label = stringResource(R.string.clip_to),
                     value = end,
                     onValueChange = { vm.trimEnd.value = it },
-                    textStyle = centeredFieldStyle,
-                    label = { Text(stringResource(R.string.clip_to)) },
-                    placeholder = { Text(MediaLibrary.formatDuration(src.durationMs) ?: "1:30") },
-                    singleLine = true,
                     enabled = !running,
                     isError = !endOk || overrun,
                     modifier = Modifier.weight(1f),

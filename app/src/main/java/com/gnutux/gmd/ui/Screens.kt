@@ -513,6 +513,7 @@ private fun ClipSection(st: SectionState, enabled: Boolean = true) {
     val clipOn by st.clipEnabled.collectAsStateWithLifecycle()
     val start by st.clipStart.collectAsStateWithLifecycle()
     val end by st.clipEnd.collectAsStateWithLifecycle()
+    val info by st.info.collectAsStateWithLifecycle()
 
     val startOk = start.isBlank() || parseClock(start) != null
     val endOk = end.isBlank() || parseClock(end) != null
@@ -526,31 +527,41 @@ private fun ClipSection(st: SectionState, enabled: Boolean = true) {
         ) {
             Text(stringResource(R.string.clip_title), Modifier.weight(1f),
                 style = MaterialTheme.typography.labelLarge)
-            Switch(checked = clipOn, enabled = enabled,
-                onCheckedChange = { st.clipEnabled.value = it })
+            Switch(
+                checked = clipOn, enabled = enabled,
+                onCheckedChange = { on ->
+                    st.clipEnabled.value = on
+                    // مدّةُ المقطعِ تُملأُ في «إلى» عندَ فتحِ القسم: القصُّ يُقلِّمُ
+                    // طرفَي مقطعٍ كامل، فالمدّةُ هي المبدأُ الطبيعيُّ لا حقلٌ فارغ.
+                    // وهي من معلوماتِ الرابطِ المجلوبةِ تلقائيّاً، فإن لم تُعرَف
+                    // بقيَ الحقلُ فارغاً كما كان.
+                    if (on && end.isBlank()) {
+                        info?.duration?.let { d ->
+                            parseClock(d.trim())?.let { seconds ->
+                                st.clipEnd.value = "%d:%02d:%02d".format(
+                                    seconds / 3600, (seconds % 3600) / 60, seconds % 60)
+                            }
+                        }
+                    }
+                },
+            )
         }
 
         if (clipOn) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ClockField(
+                    label = stringResource(R.string.clip_from),
                     value = start,
-                    enabled = enabled,
-                    textStyle = centeredFieldStyle,
                     onValueChange = { st.clipStart.value = it },
-                    label = { Text(stringResource(R.string.clip_from)) },
-                    placeholder = { Text("0:00") },
-                    singleLine = true,
+                    enabled = enabled,
                     isError = !startOk,
                     modifier = Modifier.weight(1f),
                 )
-                OutlinedTextField(
+                ClockField(
+                    label = stringResource(R.string.clip_to),
                     value = end,
-                    enabled = enabled,
-                    textStyle = centeredFieldStyle,
                     onValueChange = { st.clipEnd.value = it },
-                    label = { Text(stringResource(R.string.clip_to)) },
-                    placeholder = { Text("1:30") },
-                    singleLine = true,
+                    enabled = enabled,
                     isError = !endOk,
                     modifier = Modifier.weight(1f),
                 )

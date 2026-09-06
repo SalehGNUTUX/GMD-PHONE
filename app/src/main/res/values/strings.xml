@@ -225,4 +225,7 @@
     <string name="desc_settings">Language, save paths, updates, icon</string>
     <string name="cards_square">Square cards</string>
     <string name="cards_list">List cards</string>
+    <string name="clock_hours">hh</string>
+    <string name="clock_minutes">mm</string>
+    <string name="clock_seconds">ss</string>
 </resources>
