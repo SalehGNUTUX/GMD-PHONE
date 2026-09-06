@@ -12,6 +12,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,6 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -75,6 +82,77 @@ private fun rememberArtwork(track: Track, queue: List<Track>): Bitmap? {
             }
     }
     return state
+}
+
+/**
+ * مستوى الصوت: أيقونةٌ تفتحُ مِزلاقاً عموديّاً.
+ *
+ * والعموديُّ في قائمةٍ منسدلةٍ لا مِزلاقٌ أفقيٌّ في الشريط: الشريطُ السفليُّ ضيّقٌ
+ * فيه الاسمُ والزمنُ وأربعةُ أزرار، ومِزلاقٌ أفقيٌّ يقتطعُ منه ما يضيقُ به الاسم.
+ * فالأيقونةُ وحدَها ظاهرةٌ، ولا يظهرُ المِزلاقُ إلّا حينَ يُطلَب.
+ *
+ * وهو مستوى مشغّلِنا وحدَه لا مستوى النظام: تغييرُ مجرى الوسائطِ في النظامِ يمسُّ
+ * كلَّ تطبيقٍ يُصدِرُ صوتاً في الجهاز.
+ */
+@Composable
+private fun VolumeControl(state: PlayerState, size: Dp = 24.dp) {
+    val context = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    val level = if (state.muted) 0f else state.volume
+
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(
+                when {
+                    state.muted || state.volume == 0f -> Icons.AutoMirrored.Filled.VolumeOff
+                    state.volume < 0.5f -> Icons.AutoMirrored.Filled.VolumeDown
+                    else -> Icons.AutoMirrored.Filled.VolumeUp
+                },
+                stringResource(R.string.player_volume),
+                Modifier.size(size),
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Column(
+                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text("${(level * 100).toInt()}", style = MaterialTheme.typography.labelSmall)
+                // المِزلاقُ عموديٌّ بتدويرِه ربعَ دورة: `Slider` أفقيٌّ لا غير،
+                // والتدويرُ لا يُغيّرُ سلوكَه ولا يُفقِدُه لمسَه
+                Slider(
+                    value = level,
+                    onValueChange = { PlayerService.volume(context, it, false) },
+                    modifier = Modifier
+                        .graphicsLayer { rotationZ = 270f }
+                        .layout { measurable, constraints ->
+                            val placeable = measurable.measure(
+                                Constraints.fixed(160.dp.roundToPx(), 48.dp.roundToPx())
+                            )
+                            layout(placeable.height, placeable.width) {
+                                placeable.place(
+                                    -(placeable.width - placeable.height) / 2,
+                                    (placeable.width - placeable.height) / 2,
+                                )
+                            }
+                        },
+                )
+                IconButton(onClick = {
+                    PlayerService.volume(context, state.volume, !state.muted)
+                }) {
+                    Icon(
+                        if (state.muted) Icons.AutoMirrored.Filled.VolumeOff
+                        else Icons.AutoMirrored.Filled.VolumeUp,
+                        stringResource(
+                            if (state.muted) R.string.player_unmute else R.string.player_mute
+                        ),
+                        Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -197,6 +275,7 @@ fun PlayerBar(state: PlayerState, onOpen: () -> Unit) {
                 ) {
                     Icon(nextIcon, stringResource(R.string.player_next))
                 }
+                VolumeControl(state, size = 20.dp)
                 IconButton(onClick = { PlayerService.stop(context) }) {
                     Icon(Icons.Filled.Close, stringResource(R.string.player_stop))
                 }
@@ -322,6 +401,9 @@ fun PlayerScreen(state: PlayerState, onOpenGallery: () -> Unit = {}) {
             IconButton(onClick = { PlayerService.next(context) }, enabled = state.hasNext) {
                 Icon(nextIcon, stringResource(R.string.player_next), Modifier.size(34.dp))
             }
+            Spacer(Modifier.width(10.dp))
+            // مستوى الصوتِ إلى جانبِ الأزرار: هو ضبطٌ لا فعلُ تشغيل
+            VolumeControl(state, size = 26.dp)
         }
 
         if (state.resumed) {

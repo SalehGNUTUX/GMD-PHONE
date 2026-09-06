@@ -39,6 +39,8 @@ object PlaybackStore {
     private const val KEY_INDEX = "index"
     private const val KEY_POSITION = "position"
     private const val POS_PREFIX = "pos:"
+    private const val KEY_VOLUME = "volume"
+    private const val KEY_MUTED = "muted"
 
     /** ما دونَ هذا لا يُعَدُّ موضعاً يُستأنَفُ منه: بدايةٌ عمليّاً. */
     private const val MIN_RESUME_MS = 10_000L
@@ -84,6 +86,23 @@ object PlaybackStore {
         }.getOrDefault(emptyList())
         val index = prefs(context).getInt(KEY_INDEX, 0).coerceIn(0, maxOf(0, list.size - 1))
         return Triple(list, index, prefs(context).getLong(KEY_POSITION, 0L))
+    }
+
+    /**
+     * مستوى الصوتِ المحفوظ: من خفضَه لسماعِ كتابٍ ليلاً لا يريدُه كاملاً غداً.
+     *
+     * وهو مستوى مشغّلِنا وحدَه لا مستوى النظام.
+     */
+    fun saveVolume(context: Context, volume: Float, muted: Boolean) {
+        prefs(context).edit()
+            .putFloat(KEY_VOLUME, volume.coerceIn(0f, 1f))
+            .putBoolean(KEY_MUTED, muted)
+            .apply()
+    }
+
+    fun loadVolume(context: Context): Pair<Float, Boolean> {
+        val p = prefs(context)
+        return p.getFloat(KEY_VOLUME, 1f).coerceIn(0f, 1f) to p.getBoolean(KEY_MUTED, false)
     }
 
     fun clearQueue(context: Context) {

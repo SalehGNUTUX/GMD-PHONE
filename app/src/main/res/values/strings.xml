@@ -232,4 +232,7 @@
     <string name="gallery_trashed">%1$d deleted — you can undo</string>
     <string name="gallery_undo">Undo</string>
     <string name="gallery_trash_undo_hint">You have %1$d seconds to undo, then it is deleted.</string>
+    <string name="player_volume">Volume</string>
+    <string name="player_mute">Mute</string>
+    <string name="player_unmute">Unmute</string>
 </resources>

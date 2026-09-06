@@ -39,6 +39,9 @@ data class PlayerState(
     val durationMs: Long = 0L,
     /** صفٌّ مستعادٌ من جلسةٍ سابقةٍ لم يبدأ تشغيلُه بعد. */
     val resumed: Boolean = false,
+    /** مستوى صوتِ المشغّلِ نفسِه (0..1)، لا مستوى النظام. */
+    val volume: Float = 1f,
+    val muted: Boolean = false,
 ) {
     val current: Track? get() = queue.getOrNull(index)
     val hasNext: Boolean get() = index + 1 < queue.size
@@ -92,13 +95,18 @@ class PlayerService : Service() {
                 }
                 val index = intent.getIntExtra(EXTRA_INDEX, 0).coerceIn(0, maxOf(0, queue.size - 1))
                 if (queue.isEmpty()) { stopSelf(); return START_NOT_STICKY }
-                _state.value = PlayerState(queue, index)
+                val (vol, mute) = PlaybackStore.loadVolume(this)
+                _state.value = PlayerState(queue, index, volume = vol, muted = mute)
                 open(index, autoPlay = true)
             }
             ACTION_TOGGLE -> toggle()
             ACTION_NEXT -> skip(+1)
             ACTION_PREVIOUS -> skip(-1)
             ACTION_SEEK -> seekTo(intent.getLongExtra(EXTRA_POSITION, 0L))
+            ACTION_VOLUME -> setVolume(
+                intent.getFloatExtra(EXTRA_VOLUME, 1f),
+                intent.getBooleanExtra(EXTRA_MUTED, false),
+            )
             ACTION_JUMP -> {
                 val to = intent.getIntExtra(EXTRA_INDEX, 0)
                 if (to in _state.value.queue.indices) open(to, autoPlay = true)
@@ -138,6 +146,11 @@ class PlayerService : Service() {
             setWakeMode(applicationContext, PowerManager.PARTIAL_WAKE_LOCK)
             setOnPreparedListener { mp ->
                 _state.value = _state.value.copy(durationMs = mp.duration.toLong())
+                // المستوى المحفوظُ يُطبَّقُ على كلِّ مقطعٍ جديد: المشغّلُ يُعادُ
+                // بناؤه مع كلِّ فتح، فلا يرثُ ضبطَ سابقِه
+                val st = _state.value
+                val effective = if (st.muted) 0f else st.volume
+                runCatching { mp.setVolume(effective, effective) }
                 if (resumeAt in 1 until mp.duration.toLong()) mp.seekTo(resumeAt.toInt())
                 if (autoPlay) startPlayback() else updateNotification()
             }
@@ -206,6 +219,21 @@ class PlayerService : Service() {
         val to = st.index + delta
         if (to !in st.queue.indices) return
         open(to, autoPlay = true)
+    }
+
+    /**
+     * مستوى صوتِ المشغّلِ نفسِه لا مستوى النظام.
+     *
+     * ولم يُمَسَّ مجرى الوسائطِ في النظام (`AudioManager.setStreamVolume`): تغييرُه
+     * يمسُّ كلَّ تطبيقٍ يُصدِرُ صوتاً في الجهاز، وليس لبرنامجٍ أن يخفضَ صوتَ غيرِه.
+     * والخفضُ هنا خفضُ مقطعِنا وحدَه، وهو ما يريدُه من يسمعُ كتاباً ليلاً.
+     */
+    private fun setVolume(value: Float, mute: Boolean) {
+        val level = value.coerceIn(0f, 1f)
+        _state.value = _state.value.copy(volume = level, muted = mute)
+        PlaybackStore.saveVolume(this, level, mute)
+        val effective = if (mute) 0f else level
+        runCatching { player?.setVolume(effective, effective) }
     }
 
     private fun seekTo(ms: Long) {
@@ -401,6 +429,7 @@ class PlayerService : Service() {
         const val ACTION_NEXT = "com.gnutux.gmd.NEXT"
         const val ACTION_PREVIOUS = "com.gnutux.gmd.PREVIOUS"
         const val ACTION_SEEK = "com.gnutux.gmd.SEEK"
+        const val ACTION_VOLUME = "com.gnutux.gmd.VOLUME"
         const val ACTION_JUMP = "com.gnutux.gmd.JUMP"
         const val ACTION_STOP = "com.gnutux.gmd.PLAYER_STOP"
         private const val EXTRA_URIS = "uris"
@@ -408,6 +437,8 @@ class PlayerService : Service() {
         private const val EXTRA_DURATIONS = "durations"
         private const val EXTRA_INDEX = "index"
         private const val EXTRA_POSITION = "position"
+        private const val EXTRA_VOLUME = "volume"
+        private const val EXTRA_MUTED = "muted"
 
         private val _state = MutableStateFlow(PlayerState())
         val state: StateFlow<PlayerState> = _state
@@ -422,10 +453,11 @@ class PlayerService : Service() {
             if (_state.value.queue.isNotEmpty()) return
             val (queue, index, position) = PlaybackStore.loadQueue(context)
             if (queue.isEmpty()) return
+            val (volume, muted) = PlaybackStore.loadVolume(context)
             _state.value = PlayerState(
                 queue = queue, index = index, playing = false,
                 positionMs = position, durationMs = queue.getOrNull(index)?.durationMs ?: 0L,
-                resumed = true,
+                resumed = true, volume = volume, muted = muted,
             )
         }
 
@@ -451,6 +483,10 @@ class PlayerService : Service() {
         fun stop(context: Context) = command(context, ACTION_STOP)
         fun seek(context: Context, ms: Long) =
             command(context, ACTION_SEEK) { putExtra(EXTRA_POSITION, ms) }
+        fun volume(context: Context, value: Float, muted: Boolean) =
+            command(context, ACTION_VOLUME) {
+                putExtra(EXTRA_VOLUME, value); putExtra(EXTRA_MUTED, muted)
+            }
         fun jump(context: Context, index: Int) =
             command(context, ACTION_JUMP) { putExtra(EXTRA_INDEX, index) }
     }
