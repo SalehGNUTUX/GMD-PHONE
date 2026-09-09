@@ -235,4 +235,15 @@
     <string name="player_volume">مستوى الصوت</string>
     <string name="player_mute">اكتم الصوت</string>
     <string name="player_unmute">أعِد الصوت</string>
+    <string name="share_section">مشاركة GMD</string>
+    <string name="share_section_hint">النصّ يُرسل نبذةً بالروابط، والحزمة تُرسل البرنامج نفسه — تنفع لمن لا إنترنت عنده.</string>
+    <string name="share_app_text">شارِك البرنامج</string>
+    <string name="share_app_apk">شارِك حزمة التثبيت</string>
+    <string name="share_pitch">GMD — منزّل وسائط غنو: برنامج حرّ لأندرويد ينزّل الفيديو والصوت من مئات المواقع، ويقتصّ منها ما تريد، ويُنزّل قوائم التشغيل كاملة، ويُشغّل ما حفظتَه — كلّه على جهازك، بلا إعلانات ولا تتبُّع ولا حساب.</string>
+    <string name="share_version">الإصدار %1$s</string>
+    <string name="share_site_label">الموقع</string>
+    <string name="share_repo_label">المصدر (أندرويد)</string>
+    <string name="share_desktop_label">المصدر (غنو/لينكس)</string>
+    <string name="share_hashtags">#GMD #GNUTUX #برامج_حرّة #مفتوح_المصدر #أندرويد #تنزيل_فيديو #يوتيوب #لينكس #GPLv3</string>
+    <string name="share_apk_failed">تعذّر تجهيز حزمة التثبيت</string>
 </resources>

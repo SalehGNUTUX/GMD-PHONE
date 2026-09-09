@@ -279,23 +279,32 @@ fun GalleryScreen(
         // ── شريطُ الإجراءات ──────────────────────────────────────────────────
         if (list != null && (list.isNotEmpty() || userPlaylists.isNotEmpty() ||
                 (if (audioTab) audioFolders else videoFolders).isNotEmpty())) {
+            val tabFolders = if (audioTab) audioFolders else videoFolders
+            // العدَدُ في سطرٍ مستقلٍّ فوقَ الأدوات.
+            //
+            // كانَ يزاحمُها في صفٍّ واحد: زرُّ «تحديد الكلّ» وأربعُ أيقوناتٍ تشغلُ
+            // نحوَ ثلاثةِ أرباعِ العرض، فلا يبقى للعددِ إلّا فُتاتٌ يتكسَّرُ فيه
+            // حرفاً حرفاً — «8 مقطعاً» في ثلاثةِ أسطر. وهو ظاهرٌ في اللغتَين
+            // والتبويبَين لأنّ العلّةَ في القياسِ لا في النصّ.
+            Text(
+                if (selected.isEmpty()) {
+                    if (open == null && tabFolders.isNotEmpty())
+                        stringResource(R.string.gallery_count_with_folders,
+                            list.size, tabFolders.size)
+                    else stringResource(R.string.gallery_count, list.size)
+                }
+                else stringResource(R.string.gallery_selected, selected.size),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                val tabFolders = if (audioTab) audioFolders else videoFolders
-                Text(
-                    if (selected.isEmpty()) {
-                        if (open == null && tabFolders.isNotEmpty())
-                            stringResource(R.string.gallery_count_with_folders,
-                                list.size, tabFolders.size)
-                        else stringResource(R.string.gallery_count, list.size)
-                    }
-                    else stringResource(R.string.gallery_selected, selected.size),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
                 TextButton(onClick = {
                     selected = if (selected.size == list.size) emptySet()
                     else list.map { it.uri.toString() }.toSet()
@@ -305,6 +314,7 @@ fun GalleryScreen(
                         else R.string.gallery_select_all
                     ))
                 }
+                Spacer(Modifier.weight(1f))
                 // ضمُّ المختارِ إلى قائمةٍ من صنعِ المستخدم: ما نُزِّلَ فرادى لا
                 // مجلَّدَ يجمعُه، فالقائمةُ هي ما يجعلُه يُسمَعُ متتابعاً
                 IconButton(

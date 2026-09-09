@@ -3,4 +3,6 @@
     <!-- حزم التحديث المُنزَّلة فقط — لا يُشارَك غيرها -->
     <cache-path name="updates" path="updates/" />
     <external-files-path name="downloads" path="Download/" />
+    <!-- حزمةُ التطبيقِ نفسِها حينَ يُشارِكُها المستخدمُ من الإعدادات -->
+    <cache-path name="shared_apk" path="shared_apk/" />
 </paths>

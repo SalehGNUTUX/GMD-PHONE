@@ -38,6 +38,7 @@ import com.gnutux.gmd.R
 import com.gnutux.gmd.download.AudioFormat
 import com.gnutux.gmd.download.DownloadService
 import com.gnutux.gmd.data.LocalePrefs
+import com.gnutux.gmd.data.Share
 import com.gnutux.gmd.download.Downloader.Kind
 import com.gnutux.gmd.download.Downloader.Phase
 import com.gnutux.gmd.download.Progress
@@ -898,6 +899,45 @@ fun SettingsScreen(vm: GmdViewModel) {
                     color = MaterialTheme.colorScheme.error)
                 ToolPhase.Idle -> Unit
             }
+        }
+
+        HorizontalDivider()
+
+        // ── مشاركةُ البرنامج ─────────────────────────────────────────────────
+        //
+        // زرّانِ لا زرٌّ واحد: من عندَه إنترنتٌ يُرسِلُ رابطاً، ومن لا إنترنتَ عندَه
+        // — وهو حالُ كثيرين — يُرسِلُ الحزمةَ نفسَها عبرَ تطبيقِ مراسلةٍ محلّيّ.
+        // والنصُّ بلغةِ الواجهةِ لا بلغةٍ واحدةٍ مكتوبةٍ في الشيفرة.
+        Text(stringResource(R.string.share_section),
+            style = MaterialTheme.typography.labelLarge)
+        Text(
+            stringResource(R.string.share_section_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val shareScope = rememberCoroutineScope()
+        val shareFailed = stringResource(R.string.share_apk_failed)
+        FilledTonalButton(
+            onClick = { Share.shareText(context) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Filled.Share, null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.share_app_text))
+        }
+        FilledTonalButton(
+            onClick = {
+                shareScope.launch {
+                    if (!Share.shareApk(context)) {
+                        Toast.makeText(context, shareFailed, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Filled.Android, null, Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.share_app_apk))
         }
 
         HorizontalDivider()

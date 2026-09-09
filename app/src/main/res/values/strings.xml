@@ -235,4 +235,15 @@
     <string name="player_volume">Volume</string>
     <string name="player_mute">Mute</string>
     <string name="player_unmute">Unmute</string>
+    <string name="share_section">Share GMD</string>
+    <string name="share_section_hint">The text sends a description with the links; the package sends the app itself — useful for someone with no internet.</string>
+    <string name="share_app_text">Share the app</string>
+    <string name="share_app_apk">Share the install file</string>
+    <string name="share_pitch">GMD — GNU Media Downloader: a free media downloader for Android. It downloads video and audio from hundreds of sites, trims a clip, downloads whole playlists, and plays what you saved — all on your device, with no ads, no tracking and no account.</string>
+    <string name="share_version">Version %1$s</string>
+    <string name="share_site_label">Website</string>
+    <string name="share_repo_label">Source (Android)</string>
+    <string name="share_desktop_label">Source (GNU/Linux)</string>
+    <string name="share_hashtags">#GMD #GNUTUX #FreeSoftware #OpenSource #Android #Downloader #ytdlp #Linux #GPLv3</string>
+    <string name="share_apk_failed">Could not prepare the install file</string>
 </resources>
