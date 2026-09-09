@@ -40,12 +40,14 @@ import com.gnutux.gmd.media.MediaLibrary
 import com.gnutux.gmd.player.PlayerService
 import com.gnutux.gmd.player.PlayerState
 import com.gnutux.gmd.player.Track
+import java.util.Locale
 
 /** ‏mm:ss أو h:mm:ss حسبَ الطول. */
 fun clockOf(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
+    return if (h > 0) "%d:%02d:%02d".format(Locale.ROOT, h, m, sec)
+    else "%d:%02d".format(Locale.ROOT, m, sec)
 }
 
 /**

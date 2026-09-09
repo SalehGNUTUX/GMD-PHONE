@@ -28,13 +28,22 @@ object LocalePrefs {
     }
 
     /**
-     * يُغلِّفُ السياقَ باللغةِ المختارة. و«system» يُعيدُه كما هو، فلا نُثبِّتُ لغةً
-     * على مَن لم يختر ولا نمنعُ الواجهةَ من متابعةِ تبديلِ لغةِ النظام.
+     * يُغلِّفُ السياقَ باللغةِ المختارة. و«system» يتبعُ لغةَ النظام، فلا نُثبِّتُ
+     * لغةً على مَن لم يختر ولا نمنعُ الواجهةَ من متابعةِ تبديلِ لغةِ النظام —
+     * إلّا في شيءٍ واحد: نظامُ الأرقام (انظر [latinDigits]).
      */
     fun wrap(base: Context): Context {
         val tag = get(base)
-        if (tag == SYSTEM) return base
-        val locale = Locale.forLanguageTag(tag)
+        val chosen =
+            if (tag == SYSTEM) base.resources.configuration.locales[0]
+            else Locale.forLanguageTag(tag)
+        val locale = latinDigits(chosen)
+
+        // لغةُ النظامِ عربيّةٌ بأرقامٍ مغربيّةٍ أصلاً: لا حاجةَ إلى تغليفٍ
+        if (tag == SYSTEM && locale == chosen) return base
+
+        // `String.format` يقرأُ اللغةَ الافتراضيّةَ للعمليّةِ لا لغةَ الموارد،
+        // فالساعاتُ والأحجامُ تُبنى بها. وتُضبَطُ هنا كي يستويَ الاثنان.
         Locale.setDefault(locale)
         val config = Configuration(base.resources.configuration).apply {
             setLocale(locale)
@@ -43,5 +52,25 @@ object LocalePrefs {
             setLayoutDirection(locale)
         }
         return base.createConfigurationContext(config)
+    }
+
+    /**
+     * العربيّةُ بأرقامٍ **مغربيّةٍ 0-9** لا مشرقيّةٍ (هنديّة، نطاق U+0660).
+     *
+     * الأرقامُ في `%d` و`%.1f` يبنيها النظامُ بنظامِ أرقامِ اللغة، ونظامُ `ar`
+     * المجرَّدةِ عندَ ICU هو `arab` — المشرقيّة. فكانَ عدَدُ العنصرِ في شاشةِ
+     * التنزيلِ يخرجُ مشرقيّاً بينما بقيّةُ الأرقامِ مغربيّةٌ لأنّها نصٌّ لا صيغةُ
+     * عدد، فيختلطُ النظامانِ في شاشةٍ واحدة.
+     *
+     * والعلاجُ لاحقةُ يونيكود `-u-nu-latn` على اللغةِ العربيّةِ وحدَها: تُبدّلُ
+     * نظامَ الأرقامِ ولا تمسُّ شيئاً آخرَ من اللغةِ ولا اتّجاهَها. وتُطبَّقُ ولو
+     * كانت اللغةُ متبوعةً من النظام، فالقاعدةُ في المشروعِ 0-9 حصراً.
+     */
+    private fun latinDigits(locale: Locale): Locale {
+        if (locale.language != "ar") return locale
+        if (locale.getUnicodeLocaleType("nu") == "latn") return locale
+        return runCatching {
+            Locale.Builder().setLocale(locale).setUnicodeLocaleKeyword("nu", "latn").build()
+        }.getOrDefault(locale)
     }
 }

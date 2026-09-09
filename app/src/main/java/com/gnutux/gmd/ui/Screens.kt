@@ -47,6 +47,7 @@ import com.gnutux.gmd.download.VideoFormat
 import com.gnutux.gmd.player.PlayerService
 import com.gnutux.gmd.update.Updater
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /** حقل الرابط مع زرّ لصقٍ — على الهاتف اللصق أكثر من الكتابة بكثير. */
 @Composable
@@ -250,7 +251,7 @@ fun DownloadScreen(
                     }
                 }
                 if (determinate && p.etaSeconds > 0) {
-                    Text("%02d:%02d".format(p.etaSeconds / 60, p.etaSeconds % 60),
+                    Text("%02d:%02d".format(Locale.ROOT, p.etaSeconds / 60, p.etaSeconds % 60),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -539,7 +540,7 @@ private fun ClipSection(st: SectionState, enabled: Boolean = true) {
                     if (on && end.isBlank()) {
                         info?.duration?.let { d ->
                             parseClock(d.trim())?.let { seconds ->
-                                st.clipEnd.value = "%d:%02d:%02d".format(
+                                st.clipEnd.value = "%d:%02d:%02d".format(Locale.ROOT,
                                     seconds / 3600, (seconds % 3600) / 60, seconds % 60)
                             }
                         }

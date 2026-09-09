@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.util.Locale
 
 /**
  * مقطعٌ زمنيٌّ يُقتَصُّ من المادّة.
@@ -25,7 +26,7 @@ data class Section(val startSec: Int, val endSec: Int) {
     fun endClock(): String = clock(endSec)
 
     private fun clock(t: Int): String =
-        "%02d:%02d:%02d".format(t / 3600, (t % 3600) / 60, t % 60)
+        "%02d:%02d:%02d".format(Locale.ROOT, t / 3600, (t % 3600) / 60, t % 60)
 }
 
 /** عنصرٌ واحدٌ في قائمةِ تشغيل، كما يراه المستخدمُ قبلَ أن يختار. */
@@ -358,8 +359,8 @@ object Downloader {
                     // انتقالُ العنصرِ إعلانٌ بأنّ ما قبلَه تمَّ: يُسلَّمُ الآنَ ولا
                     // يُنتظَرُ به آخرُ القائمة
                     if (onFileReady != null && items != null) {
-                        Watch.itemOf(line)?.let { (position, _) ->
-                            sweep(out, items.take(position - 1), delivered, onFileReady)
+                        Watch.itemOf(line)?.let {
+                            sweep(out, delivered, onFileReady)
                         }
                     }
                 }
@@ -387,28 +388,31 @@ object Downloader {
     }
 
     /**
-     * يُسلّمُ ملفّاتِ العناصرِ التي تمَّت، ولا يمسُّ ما يجري.
+     * يُسلّمُ ما تمَّ من عناصرِ القائمةِ أوّلاً بأوّل، ولا يمسُّ ما يجري.
      *
-     * والتمييزُ بترتيبِ العنصرِ في الاسم — `07 - العنوان.mp3` — لا بحداثةِ الملفّ:
-     * فـyt-dlp يكتبُ أثناءَ العنصرِ الجاري قِطَعاً مؤقّتةً تبدو مكتملةً (`.f137.mp4`
-     * قبلَ التجميع)، فنقلُها يُفسِدُ المقطعَ ويُهدِرُ ما نزل. و`--playlist-items`
-     * يجعلُ «العنصر 3 من 7» ترتيباً في المطلوبِ لا رقمَ الفهرس، فيُقرَأُ الرقمُ من
-     * قائمةِ ما طُلِبَ لا من العدّ.
+     * ويُستدعى لحظةَ إعلانِ yt-dlp عنصراً جديداً، وهي اللحظةُ التي فرغَ فيها ممّا
+     * قبلَه **تنزيلاً وما بعدَ معالجةٍ معاً** — يستخرجُ الصوتَ ويُجمّعُ التيّاراتِ
+     * ويمحو وسائطَه ثمّ ينتقل. فكلُّ ملفٍّ في مجلَّدِ العملِ حينَها تامٌّ، ولا
+     * يُستثنى إلّا ما تُعلِنُ لاحقتُه أنّه قيدُ العمل (`.part` و`.f137.mp4`) وصورُ
+     * الأغلفة.
+     *
+     * وكانَ التمييزُ برقمِ العنصرِ في أوّلِ الاسمِ (`07 - العنوان.mp3`) مقيساً على
+     * ما اختارَه المستخدمُ من القائمة. وذلك يصحُّ في قائمةٍ مسطَّحةٍ ويسقطُ في
+     * **قناة**: القناةُ قوائمُ داخلَ قائمة (مقاطعُ وShorts)، فالمختارُ عنصرانِ
+     * بينما الملفّاتُ تُرقَّمُ بترتيبِها في القائمةِ الداخليّةِ إلى 253 — فلا
+     * يُسلَّمُ منها إلّا `01` و`02` ويبقى الباقي حبيسَ مجلَّدِ العملِ حتّى تنتهيَ
+     * القناةُ كلُّها.
      */
     private fun sweep(
         out: File,
-        completed: List<Int>,
         delivered: MutableSet<String>,
         onFileReady: (File) -> Unit,
     ) {
-        if (completed.isEmpty()) return
-        val prefixes = completed.map { "%02d - ".format(it) }
         out.listFiles()?.forEach { f ->
             if (!f.isFile || f.length() == 0L) return@forEach
             if (f.name in delivered) return@forEach
             if (WORKING.containsMatchIn(f.name)) return@forEach
             if (IMAGE.containsMatchIn(f.name)) return@forEach
-            if (prefixes.none { f.name.startsWith(it) }) return@forEach
             delivered.add(f.name)
             onFileReady(f)
         }
@@ -456,6 +460,7 @@ object Downloader {
     private fun formatDuration(seconds: Int?): String {
         val s = seconds ?: return "—"
         val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60
-        return if (h > 0) "%02d:%02d:%02d".format(h, m, sec) else "%02d:%02d".format(m, sec)
+        return if (h > 0) "%02d:%02d:%02d".format(Locale.ROOT, h, m, sec)
+        else "%02d:%02d".format(Locale.ROOT, m, sec)
     }
 }

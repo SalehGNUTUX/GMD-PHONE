@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gnutux.gmd.R
+import java.util.Locale
 
 /**
  * حدٌّ زمنيٌّ في ثلاثِ خاناتٍ رقميّة: ساعاتٌ ودقائقُ وثوانٍ.
@@ -86,7 +87,7 @@ fun ClockField(
             ""
         } else {
             "%d:%02d:%02d".format(
-                h.toIntOrNull() ?: 0, m.toIntOrNull() ?: 0, s.toIntOrNull() ?: 0,
+                Locale.ROOT, h.toIntOrNull() ?: 0, m.toIntOrNull() ?: 0, s.toIntOrNull() ?: 0,
             )
         }
         emitted = text

@@ -33,6 +33,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.Locale
 
 /** حالةُ تحديثِ ثنائيّ yt-dlp. */
 sealed interface ToolPhase {
@@ -69,8 +70,8 @@ fun parseClock(text: String): Int? {
 }
 
 private fun formatClock(t: Int): String =
-    if (t >= 3600) "%d:%02d:%02d".format(t / 3600, (t % 3600) / 60, t % 60)
-    else "%d:%02d".format(t / 60, t % 60)
+    if (t >= 3600) "%d:%02d:%02d".format(Locale.ROOT, t / 3600, (t % 3600) / 60, t % 60)
+    else "%d:%02d".format(Locale.ROOT, t / 60, t % 60)
 
 /**
  * حالةُ قسمٍ واحدٍ من قسمَي التنزيل: رابطُه ومعلوماتُه وقائمتُه وخياراتُه.
@@ -361,7 +362,7 @@ class GmdViewModel(app: Application) : AndroidViewModel(app) {
 
     /** ثوانٍ إلى `H:MM:SS`، وهي الصيغةُ التي تقرؤها حقولُ الوقتِ الثلاثة. */
     private fun clockOf(seconds: Long): String =
-        "%d:%02d:%02d".format(seconds / 3600, (seconds % 3600) / 60, seconds % 60)
+        "%d:%02d:%02d".format(Locale.ROOT, seconds / 3600, (seconds % 3600) / 60, seconds % 60)
 
     private val _ytdlpVersion = MutableStateFlow<String?>(null)
     val ytdlpVersion: StateFlow<String?> = _ytdlpVersion
