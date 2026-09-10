@@ -157,9 +157,39 @@
     [data-lang].active-lang { display: block; }
     span[data-lang].active-lang, strong[data-lang].active-lang { display: inline; }
 
-    @media (max-width: 600px) {
-      body { padding: 1rem; }
-      .glass-card { padding: 1.6rem; border-radius: var(--radius-2xl); }
+    /* ── الهاتف ─────────────────────────────────────────────────────────────
+       شريطُ الخيارات `flex-wrap: wrap`، فيتكسّرُ على الشاشةِ الضيّقةِ إلى أربعةِ
+       صفوفٍ تلتهمُها قبلَ أن يُقرَأَ سطرٌ من المحتوى — والموقعُ موقعُ تطبيقِ هاتفٍ
+       يُفتَحُ من الهاتفِ أوّلاً. فصارَ صفّاً واحداً يُمرَّرُ أفقيّاً بالإصبع:
+       ارتفاعُه سطرٌ مهما كثُرت الأزرارُ ولا يُخفي منها شيئاً. */
+    @media (max-width: 760px) {
+      body { padding: 0.8rem; }
+      .glass-card { padding: 1.3rem; border-radius: var(--radius-2xl); }
+
+      .nav-glass {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        justify-content: flex-start;
+        gap: 0.4rem;
+        padding: 0.5rem 0.6rem;
+        top: 0.5rem;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      .nav-glass::-webkit-scrollbar { display: none; }
+      .nav-btn, .lang-btn {
+        flex: 0 0 auto;
+        padding: 0.42rem 0.8rem;
+        font-size: 0.85rem;
+        white-space: nowrap;
+      }
+
+      .hero-title { font-size: 2rem; line-height: 1.25; }
+      .icon-frame { width: 96px; height: 96px; }
+      .section-title { font-size: 1.15rem; line-height: 1.5; flex-wrap: wrap; }
+      .download-link { word-break: break-word; }
+      pre, code { font-size: 0.78rem; word-break: break-all; white-space: pre-wrap; }
+      table { display: block; overflow-x: auto; }
     }
   </style>
 </head>
@@ -181,24 +211,24 @@
       <div data-lang="ar" class="active-lang"><p class="hero-sub">منزّل وسائط حرّ، عربيّ الواجهة، بلا إعلانات ولا تتبُّع</p></div>
       <div data-lang="en"><p class="hero-sub">A free media downloader for Android — no ads, no tracking</p></div>
       <div class="badges">
-        <span class="badge" style="background:rgba(251,191,36,0.15); border-color:rgba(251,191,36,0.4); color:#fcd34d;">v26.9.0-beta.4</span>
+        <span class="badge" style="background:rgba(34,197,94,0.15); border-color:rgba(34,197,94,0.4); color:#86efac;">v26.9.2</span>
         <span class="badge">GPL v3</span>
         <span class="badge"><span data-lang="ar" class="active-lang">أندرويد 7.0 فما فوق</span><span data-lang="en">Android 7.0+</span></span>
         <span class="badge">yt-dlp · ffmpeg · aria2c</span>
       </div>
       <div style="margin-top:1.6rem;">
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.0-beta.4/GMD-PHONE-v26.9.0-beta.4-arm64-v8a-release.apk" class="download-link">⬇️ <span data-lang="ar" class="active-lang">تنزيل الحزمة (arm64)</span><span data-lang="en">Download (arm64)</span></a>
+        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-arm64-v8a-release.apk" class="download-link">⬇️ <span data-lang="ar" class="active-lang">تنزيل الحزمة (arm64)</span><span data-lang="en">Download (arm64)</span></a>
         <a href="https://github.com/SalehGNUTUX/GMD-PHONE" class="download-link ghost"><i class="fa-brands fa-github"></i> <span data-lang="ar" class="active-lang">المصدر</span><span data-lang="en">Source</span></a>
       </div>
     </div>
 
-    <div class="glass-card" style="border-color:rgba(251,191,36,0.35);">
-      <div class="section-title" style="color:var(--accent);"><span>⚠️</span> <span data-lang="ar" class="active-lang">إصدار تجريبيّ أوّليّ</span><span data-lang="en">Early alpha</span></div>
+    <div class="glass-card" style="border-color:rgba(34,197,94,0.35);">
+      <div class="section-title" style="color:#86efac;"><span>✅</span> <span data-lang="ar" class="active-lang">إصدار مستقرّ</span><span data-lang="en">Stable release</span></div>
       <div data-lang="ar" class="active-lang">
-        <p><strong>26.9.0-beta.4</strong> إصدار تجريبيّ مرشَّح للاستقرار: التثبيت والتنزيل والتصفّح والحفظ جُرِّبت على جهاز حقيقيّ ونجحت. وقد أُعيد تفعيل التصغير بعد أن تبيّن أنّ المكتبة لا تشحن قواعد حفظ إطلاقاً، فصَغُرت الحزمة من 51 إلى 41 م.ب، وصار اسم أيّ استثناء يصلك مقروءاً لا مشوَّشاً. وإن واجهتَ عطباً فانسخ نصّه من البطاقة الحمراء بزرّ «انسخ الخطأ» وأرسله في <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues" style="color:var(--primary-glow);">المسائل</a> — النصّ وحده يكفي لتشخيصه.</p>
+        <p><strong>26.9.2</strong> إصدار مستقرّ، سبقته ستّ عشرة جولة تجربة على جهاز حقيقيّ. وفيه المعرض والمشغّل الصوتيّ الداخليّ وقوائم التشغيل من صنعك، واقتصاص جزء عند التنزيل أو من ملفّ في جهازك، وسجلّ لكلّ محاولة. وإن واجهتَ عطباً فانسخ نصّه بزرّ «انسخ الخطأ» وأرسله في <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues" style="color:var(--primary-glow);">المسائل</a> — النصّ وحده يكفي لتشخيصه.</p>
       </div>
       <div data-lang="en">
-        <p><strong>26.9.0-beta.4</strong> is a beta on the way to stable: install, download, browsing and saving were all tried on a real device and worked. Minification is back on — the library turned out to ship no keep rules at all — so the package dropped from 51 to 41 MB, and any exception that reaches you now carries its real name. If you hit a failure, copy its text from the red card with “Copy the error” and post it in <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues" style="color:var(--primary-glow);">Issues</a> — that text alone is enough to diagnose it.</p>
+        <p><strong>26.9.2</strong> is a stable release, after sixteen beta rounds tried on a real device. It brings the gallery, the built-in audio player and your own playlists, trimming at download time or from a file on your device, and a log of every attempt. If you hit a failure, copy its text with “Copy the error” and post it in <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues" style="color:var(--primary-glow);">Issues</a> — that text alone is enough to diagnose it.</p>
       </div>
     </div>
 
@@ -243,14 +273,14 @@
         </table>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:0.7rem; margin-top:1rem;">
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.0-beta.4/GMD-PHONE-v26.9.0-beta.4-arm64-v8a-release.apk" class="download-link">⬇️ arm64-v8a</a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.0-beta.4/GMD-PHONE-v26.9.0-beta.4-armeabi-v7a-release.apk" class="download-link ghost">⬇️ armeabi-v7a</a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.0-beta.4/GMD-PHONE-v26.9.0-beta.4-x86_64-release.apk" class="download-link ghost">⬇️ x86_64</a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.0-beta.4/GMD-PHONE-v26.9.0-beta.4-x86-release.apk" class="download-link ghost">⬇️ x86</a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.0-beta.4/GMD-PHONE-v26.9.0-beta.4-universal-release.apk" class="download-link ghost">⬇️ universal</a>
+        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-arm64-v8a-release.apk" class="download-link">⬇️ arm64-v8a</a>
+        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-armeabi-v7a-release.apk" class="download-link ghost">⬇️ armeabi-v7a</a>
+        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-x86_64-release.apk" class="download-link ghost">⬇️ x86_64</a>
+        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-x86-release.apk" class="download-link ghost">⬇️ x86</a>
+        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-universal-release.apk" class="download-link ghost">⬇️ universal</a>
       </div>
       <div style="margin-top:0.9rem;">
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/tag/v26.9.0-beta.4" class="download-link ghost"><span data-lang="ar" class="active-lang">صفحة الإصدار</span><span data-lang="en">Release page</span></a>
+        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/tag/v26.9.2" class="download-link ghost"><span data-lang="ar" class="active-lang">صفحة الإصدار</span><span data-lang="en">Release page</span></a>
       </div>
       <div class="note">
         <div data-lang="ar" class="active-lang">مع كلّ إصدار ملفُّ <code>SHA256SUMS.txt</code>. قارن بصمة الحزمة به قبل التثبيت إن أردت التأكّد من أنّها وصلت كما بُنيَت.</div>
