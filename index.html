@@ -1,357 +1,533 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>GMD لأندرويد · منزّل وسائط غنو</title>
-  <meta name="description" content="GMD لأندرويد — منزّل وسائط حرّ، عربيّ الواجهة، بلا إعلانات ولا تتبُّع. yt-dlp وffmpeg مضمَّنان في الحزمة.">
-  <link rel="icon" type="image/png" href="site-assets/gmd-icon.png">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <style>
-    @font-face {
-      font-family: 'Ubuntu Arabic';
-      src: url('site-assets/fonts/Ubuntu Arabic Regular.otf') format('opentype');
-      font-weight: 400; font-style: normal; font-display: swap;
-    }
-    @font-face {
-      font-family: 'Ubuntu Arabic';
-      src: url('site-assets/fonts/Ubuntu Arabic Bold.ttf') format('truetype');
-      font-weight: 700; font-style: normal; font-display: swap;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GMD لأندرويد · منزّل وسائط غنو</title>
+<meta name="description" content="GMD لأندرويد: منزّل وسائط حرّ، عربيّ الواجهة، بلا إعلانات ولا تتبُّع. yt-dlp وffmpeg وaria2c داخل الحزمة. الإصدار 26.9.2 المستقرّ.">
+<meta name="theme-color" content="#0B0B0D">
+<link rel="icon" type="image/png" href="site-assets/gmd-icon.png">
+<meta property="og:title" content="GMD لأندرويد · منزّل وسائط غنو">
+<meta property="og:description" content="نزّل ما تشاهده إلى هاتفك، ثمّ اقتصصه واسمعه من معرض التطبيق نفسه. برنامج حرّ برخصة GPL v3.">
+<meta property="og:image" content="https://salehgnutux.github.io/GMD-PHONE/site-assets/gmd-icon.png">
+<meta property="og:url" content="https://salehgnutux.github.io/GMD-PHONE/">
+<meta property="og:type" content="website">
+<style>
+@font-face{font-family:'Ubuntu Arabic';src:url('site-assets/fonts/Ubuntu Arabic Regular.otf') format('opentype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Ubuntu Arabic';src:url('site-assets/fonts/Ubuntu Arabic Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
 
-    :root {
-      --primary: #7c3aed;
-      --primary-glow: #a78bfa;
-      --surface-glass: rgba(15, 15, 25, 0.8);
-      --text-primary: #f1f0ff;
-      --text-muted: #b0b0cc;
-      --accent: #fbbf24;
-      --radius-3xl: 2.8rem;
-      --radius-2xl: 2rem;
-      --transition: 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    }
+/* ── نظامُ الألوانِ مأخوذٌ من سمةِ البرنامجِ نفسِه ─────────────────────────────
+   لا من ذوقٍ حرٍّ: القيمُ هي قيمُ `tailwind.config.js` و`Theme.kt` حرفاً بحرف،
+   كي تكونَ الصفحةُ والبرنامجُ الذي تُنزَّلُ منه شيئاً واحداً في العين. */
+:root{
+  --ink:#0B0B0D; --surface:#16161A; --raise:#1F1F25; --line:#2E2E36; --line-soft:#232329;
+  --text:#EDEDF0; --muted:#B6B6BF; --dim:#83838F;
+  --red:#DC2626; --red-soft:#F87171; --ok:#4ADE80;
+  --r:12px; --r-sm:8px;
+  --mono:ui-monospace,"DejaVu Sans Mono","Liberation Mono",Menlo,Consolas,monospace;
+  --wrap:1080px; --fade:left;
+}
+html[lang="en"]{--fade:right}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Ubuntu Arabic',system-ui,-apple-system,sans-serif;
+  background:var(--ink); color:var(--text);
+  font-size:16px; line-height:1.75; text-align:start;
+  padding:0 1rem 4rem;
+  overflow-x:hidden;
+}
+html[lang="en"] body{line-height:1.62}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--red-soft); outline-offset:3px; border-radius:4px}
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+/* لغةٌ واحدةٌ ظاهرةٌ في كلِّ لحظة. ويُخفى غيرُ العاملةِ وحدَه، فيبقى للعاملةِ
+   عرضُها الذي أعطاه إيّاها تنسيقُها — سطريّاً كانَ أو كتليّاً — ولا يلزمُ صنفٌ
+   خاصٌّ لكلِّ حالة. وكانَ العكسُ يقتضي حيلةَ `active-inline` في الصفحةِ القديمة. */
+html[lang="ar"] [data-lang="en"]{display:none!important}
+html[lang="en"] [data-lang="ar"]{display:none!important}
 
-    body {
-      font-family: 'Ubuntu Arabic', system-ui, sans-serif;
-      background: radial-gradient(ellipse at 30% 20%, #1e1335 0%, #07060e 100%);
-      background-attachment: fixed;
-      min-height: 100vh;
-      color: var(--text-primary);
-      padding: 1.8rem;
-      display: flex; flex-direction: column; align-items: center;
-      line-height: 1.75;
-    }
+.wrap{max-width:var(--wrap); margin:0 auto}
+.mono{font-family:var(--mono); font-size:0.86em; letter-spacing:-0.01em; direction:ltr; unicode-bidi:isolate}
 
-    .main-container { width: 100%; max-width: 980px; display: flex; flex-direction: column; gap: 1.8rem; }
+/* ── الشريطُ العلويّ ───────────────────────────────────────────────────────
+   صفٌّ واحدٌ لا يتكسّرُ أبداً، يُمرَّرُ بالإصبعِ على الهاتف. كانَ `flex-wrap`
+   فيصيرُ على شاشةِ الهاتفِ خمسةَ صفوفٍ تلتهمُ الشاشةَ قبلَ سطرٍ من المحتوى. */
+.bar{
+  position:sticky; top:0; z-index:40;
+  margin:0 -1rem; padding:0.55rem 1rem;
+  background:rgba(11,11,13,0.92); backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line-soft);
+}
+.bar-in{
+  max-width:var(--wrap); margin:0 auto;
+  display:flex; align-items:center; gap:0.35rem;
+  overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+}
+.bar-in::-webkit-scrollbar{display:none}
+.brand{display:flex; align-items:center; gap:0.5rem; flex:0 0 auto; font-weight:700; margin-inline-end:0.4rem; text-decoration:none}
+.brand img{width:26px; height:26px; border-radius:6px}
+.bar a.nav,.bar button.lang{
+  flex:0 0 auto; white-space:nowrap; text-decoration:none;
+  font-family:inherit; font-size:0.88rem; color:var(--muted);
+  background:none; border:1px solid transparent; border-radius:99px;
+  padding:0.34rem 0.75rem; cursor:pointer;
+}
+.bar a.nav:hover,.bar button.lang:hover{color:var(--text); background:var(--raise)}
+/* مبدّلُ اللغةِ لا يُمرَّرُ معَ الشريط: هو أوّلُ ما يُطلَبُ في صفحةٍ بلغتَين،
+   فيبقى ملتصقاً بالحافّةِ ولو انزلقَ ما قبلَه تحتَ الإصبع. */
+.bar .langs{
+  display:flex; gap:0.25rem; flex:0 0 auto;
+  position:sticky; inset-inline-end:0; margin-inline-start:auto;
+  padding-inline-start:0.6rem; background:var(--ink);
+}
+.bar .langs::before{
+  content:""; position:absolute; inset-block:0; inset-inline-end:100%; width:1.4rem;
+  background:linear-gradient(to var(--fade), rgba(11,11,13,0), var(--ink));
+  pointer-events:none;
+}
+.bar button.lang[aria-pressed="true"]{color:var(--text); border-color:var(--line); background:var(--raise)}
 
-    .glass-card {
-      background: var(--surface-glass);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: var(--radius-3xl);
-      padding: 2.5rem;
-    }
+/* ── الواجهة ──────────────────────────────────────────────────────────── */
+.hero{padding:2.6rem 0 2rem; border-bottom:1px solid var(--line-soft)}
+.hero-top{display:flex; align-items:center; gap:0.9rem; margin-bottom:1.1rem}
+.hero-top img{width:60px; height:60px; border-radius:14px; border:1px solid var(--line)}
+.hero h1{font-size:clamp(1.75rem,7vw,2.7rem); line-height:1.2; font-weight:700}
+.hero h1 .sub{display:block; font-size:0.44em; font-weight:400; color:var(--muted); line-height:1.5; margin-top:0.25rem}
+.lede{color:var(--muted); max-width:58ch; margin-bottom:1.3rem}
+.chips{display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:1.5rem}
+.chip{
+  font-size:0.78rem; padding:0.2rem 0.6rem; border-radius:99px;
+  border:1px solid var(--line); color:var(--muted); background:var(--surface);
+}
+.chip.on{border-color:rgba(74,222,128,0.35); color:var(--ok); background:rgba(74,222,128,0.07)}
 
-    .nav-glass {
-      position: sticky; top: 1rem; z-index: 30;
-      background: rgba(15,15,25,0.85); backdrop-filter: blur(20px);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: var(--radius-2xl);
-      padding: 0.7rem 1rem;
-      display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: center;
-    }
-    .nav-btn, .lang-btn {
-      background: rgba(124,58,237,0.15); border: 1px solid rgba(167,139,250,0.25);
-      color: var(--text-primary); text-decoration: none;
-      padding: 0.45rem 1rem; border-radius: 999px; font-size: 0.95rem;
-      cursor: pointer; font-family: inherit; transition: var(--transition);
-    }
-    .nav-btn:hover, .lang-btn:hover { background: rgba(124,58,237,0.4); transform: translateY(-2px); }
-    .lang-btn.active { background: var(--primary); border-color: var(--primary-glow); }
+/* ── صفُّ التنزيلِ الرئيس ──────────────────────────────────────────────────
+   ليسَ زرّاً بنصٍّ عامّ، بل الملفُّ نفسُه: اسمُه وحجمُه ومعماريّتُه ظاهرةٌ قبلَ
+   النقر. والخطُّ الأحمرُ يمتلئُ تحتَه عندَ اللمسِ أو التركيز، وهي الحركةُ
+   الوحيدةُ في الصفحة. */
+.get{
+  display:flex; align-items:center; gap:0.85rem;
+  text-decoration:none; position:relative; overflow:hidden;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  padding:0.95rem 1.05rem; margin-bottom:0.7rem;
+}
+.get::after{
+  content:""; position:absolute; inset-inline-start:0; bottom:0; height:2px; width:0;
+  background:var(--red); transition:width 0.45s cubic-bezier(0.2,0.8,0.2,1);
+}
+.get:hover::after,.get:focus-visible::after{width:100%}
+.get:hover{border-color:#3a3a44}
+.get-ic{
+  flex:0 0 auto; width:38px; height:38px; border-radius:10px;
+  background:var(--red); color:#fff; display:grid; place-items:center;
+}
+.get-ic svg{width:19px; height:19px}
+.get-txt{flex:1 1 auto; min-width:0}
+.get-lead{display:block; font-weight:700; font-size:1rem}
+.get-file{display:block; color:var(--dim); font-size:0.76rem; line-height:1.45; overflow-wrap:anywhere}
+.get-size{flex:0 0 auto; color:var(--muted); font-size:0.82rem}
+.alt{display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center}
+.alt a{
+  text-decoration:none; font-size:0.86rem; color:var(--muted);
+  border:1px solid var(--line); border-radius:99px; padding:0.34rem 0.8rem;
+  display:inline-flex; align-items:center; gap:0.4rem;
+}
+.alt a:hover{color:var(--text); border-color:#3a3a44; background:var(--surface)}
+.alt svg{width:14px; height:14px; opacity:0.8}
 
-    .hero-section { text-align: center; }
-    .icon-frame {
-      width: 128px; height: 128px; margin: 0 auto 1.2rem;
-      border-radius: 2rem; overflow: hidden;
-      box-shadow: 0 0 45px rgba(167,139,250,0.45);
-    }
-    .icon-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .hero-title {
-      font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.3;
-      background: linear-gradient(120deg, var(--primary-glow), var(--accent));
-      -webkit-background-clip: text; background-clip: text; color: transparent;
-    }
-    .hero-sub { font-size: 1.25rem; color: var(--text-muted); margin-top: 0.6rem; }
-    .badges { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; margin-top: 1.4rem; }
-    .badge {
-      font-size: 0.9rem; padding: 0.3rem 0.9rem; border-radius: 999px;
-      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-      color: var(--text-muted);
-    }
+/* ── الأقسام ─────────────────────────────────────────────────────────── */
+section{padding:2.4rem 0; border-bottom:1px solid var(--line-soft); scroll-margin-top:3.6rem}
+.head{display:flex; align-items:baseline; justify-content:space-between; gap:1rem; margin-bottom:1.3rem}
+.head h2{font-size:1.25rem; font-weight:700}
+.head .meta{font-size:0.8rem; color:var(--dim); text-align:end; flex:0 0 auto}
+.prose{color:var(--muted); max-width:66ch}
+.prose+.prose{margin-top:0.7rem}
+.prose a{color:var(--red-soft)}
+.note{
+  margin-top:1.2rem; padding:0.85rem 1rem;
+  background:var(--surface); border:1px solid var(--line-soft); border-radius:var(--r-sm);
+  color:var(--muted); font-size:0.9rem;
+}
+.note code{font-family:var(--mono); font-size:0.85em; color:var(--text)}
 
-    .section-title {
-      display: flex; align-items: center; gap: 0.7rem;
-      font-size: 1.6rem; font-weight: 700; margin-bottom: 1.4rem;
-      color: var(--primary-glow);
-    }
+/* المزايا: شبكةٌ بلا إطارات، يفصلُ بينَها خيطٌ واحد */
+.feats{display:grid; grid-template-columns:1fr; gap:0}
+.feat{padding:0.85rem 0; border-top:1px solid var(--line-soft)}
+.feat b{display:block; font-weight:700; font-size:0.98rem}
+.feat span{display:block; color:var(--dim); font-size:0.87rem; line-height:1.6}
 
-    .features-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.9rem;
-    }
-    .feature-item {
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 1.2rem; padding: 1rem 1.1rem;
-      display: flex; align-items: center; gap: 0.7rem;
-      transition: var(--transition);
-    }
-    .feature-item:hover { background: rgba(124,58,237,0.16); transform: translateY(-3px); }
-    .feature-item span { font-size: 1.5rem; }
+/* ── بيانُ الإصدار ────────────────────────────────────────────────────────
+   وهو موضعُ الجرأةِ في الصفحة: كلُّ حزمةٍ باسمِها وحجمِها الحقيقيِّ وبصمتِها،
+   لا بطاقاتٍ متشابهةً تقولُ «نزّل». */
+.arch{margin-bottom:1.6rem}
+.arch:last-child{margin-bottom:0}
+.arch-h{
+  display:flex; align-items:baseline; gap:0.55rem; flex-wrap:wrap;
+  padding-bottom:0.5rem; margin-bottom:0.2rem; border-bottom:1px solid var(--line);
+}
+.arch-h b{font-family:var(--mono); font-size:0.9rem; color:var(--red-soft); direction:ltr}
+.arch-h span{font-size:0.83rem; color:var(--dim)}
+.row{
+  display:grid; grid-template-columns:1fr; gap:0.4rem;
+  padding:0.9rem 0; border-bottom:1px solid var(--line-soft);
+}
+.row-name{
+  font-family:var(--mono); font-size:0.84rem; direction:ltr; unicode-bidi:isolate;
+  text-decoration:none; overflow-wrap:anywhere; color:var(--text);
+  display:inline-flex; align-items:center; gap:0.45rem;
+}
+.row-name:hover{color:var(--red-soft)}
+.row-name svg{width:14px; height:14px; flex:0 0 auto; opacity:0.75}
+.row-size{color:var(--muted); font-size:0.84rem}
+.row-note{display:block; color:var(--dim); font-size:0.84rem; line-height:1.55}
+.sha{
+  display:flex; align-items:center; gap:0.45rem; width:max-content; max-width:100%;
+  background:var(--raise); border:1px solid var(--line-soft); border-radius:var(--r-sm);
+  padding:0.3rem 0.5rem; min-width:0;
+}
+.sha code{
+  font-family:var(--mono); font-size:0.72rem; color:var(--dim);
+  direction:ltr; unicode-bidi:isolate; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.copy{
+  flex:0 0 auto; background:none; border:0; cursor:pointer; color:var(--muted);
+  padding:0.15rem; display:grid; place-items:center; border-radius:5px;
+}
+.copy:hover{color:var(--text); background:var(--line)}
+.copy svg{width:14px; height:14px}
+.copy .i-ok{display:none}
+.copy.ok{color:var(--ok)}
+.copy.ok .i-cp{display:none}
+.copy.ok .i-ok{display:block}
 
-    .download-link {
-      display: inline-block; margin: 0.4rem 0.4rem 0 0;
-      background: linear-gradient(120deg, var(--primary), #5b21b6);
-      color: #fff; text-decoration: none; font-weight: 700;
-      padding: 0.75rem 1.6rem; border-radius: 999px;
-      box-shadow: 0 6px 22px rgba(124,58,237,0.35);
-      transition: var(--transition);
-    }
-    .download-link:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(124,58,237,0.5); }
-    .download-link.ghost {
-      background: transparent; border: 1px solid rgba(167,139,250,0.4); box-shadow: none;
-    }
+/* أسطرُ الأوامر */
+.cmd{
+  display:flex; align-items:center; gap:0.5rem;
+  background:var(--raise); border:1px solid var(--line-soft); border-radius:var(--r-sm);
+  padding:0.55rem 0.7rem; margin-bottom:0.5rem;
+}
+.cmd code{
+  flex:1 1 auto; font-family:var(--mono); font-size:0.79rem; color:var(--text);
+  direction:ltr; unicode-bidi:isolate; overflow-wrap:anywhere; line-height:1.6;
+}
+.step-h{font-weight:700; font-size:0.95rem; margin:1.4rem 0 0.55rem}
+.step-h:first-child{margin-top:0}
 
-    .table-wrap { overflow-x: auto; margin: 1.2rem 0; }
-    table { width: 100%; border-collapse: collapse; min-width: 420px; }
-    th, td { text-align: start; padding: 0.7rem 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
-    th { color: var(--primary-glow); font-size: 0.95rem; }
-    td code {
-      background: rgba(0,0,0,0.35); padding: 0.15rem 0.5rem; border-radius: 0.5rem;
-      font-family: ui-monospace, monospace; font-size: 0.9rem; color: var(--accent);
-    }
+/* الخطواتُ مرقّمةٌ لأنّها تسلسلٌ فعليّ، لا زينةً على كلِّ قائمة */
+ol.steps{list-style:none; counter-reset:s}
+ol.steps li{
+  counter-increment:s; position:relative;
+  padding-inline-start:2rem; padding-bottom:0.75rem; color:var(--muted);
+}
+ol.steps li::before{
+  content:counter(s); position:absolute; inset-inline-start:0; top:0.28rem;
+  width:1.35rem; height:1.35rem; border-radius:50%;
+  border:1px solid var(--line); color:var(--dim);
+  font-size:0.72rem; line-height:1.25rem; text-align:center;
+}
+ol.steps strong{color:var(--text)}
 
-    .note {
-      border-inline-start: 3px solid var(--accent);
-      background: rgba(251,191,36,0.07);
-      padding: 0.9rem 1.1rem; border-radius: 0 1rem 1rem 0; margin-top: 1.2rem;
-      color: var(--text-muted);
-    }
+/* اللقطات */
+.shots{display:grid; grid-template-columns:1fr; gap:1rem}
+.shot p{font-size:0.85rem; color:var(--dim); margin-bottom:0.45rem}
+.shot img{
+  width:100%; height:auto; display:block; cursor:zoom-in;
+  border:1px solid var(--line); border-radius:var(--r); background:var(--surface);
+}
+.lb{
+  position:fixed; inset:0; z-index:60; display:none;
+  background:rgba(6,6,8,0.94); padding:1rem; place-items:center;
+}
+.lb[open]{display:grid}
+.lb img{max-width:100%; max-height:90vh; border-radius:var(--r)}
+.lb button{
+  position:absolute; top:0.8rem; inset-inline-end:0.8rem;
+  background:var(--surface); color:var(--text); border:1px solid var(--line);
+  border-radius:50%; width:2.2rem; height:2.2rem; font-size:1.2rem; cursor:pointer; line-height:1;
+}
 
-    .steps { counter-reset: s; list-style: none; display: grid; gap: 0.8rem; }
-    .steps li {
-      counter-increment: s; position: relative; padding-inline-start: 2.8rem;
-      color: var(--text-muted);
-    }
-    .steps li::before {
-      content: counter(s); position: absolute; inset-inline-start: 0; top: 0.15rem;
-      width: 1.9rem; height: 1.9rem; border-radius: 50%;
-      background: rgba(124,58,237,0.3); border: 1px solid rgba(167,139,250,0.4);
-      display: grid; place-items: center; color: var(--text-primary); font-size: 0.9rem;
-    }
+/* الجسرُ إلى النسخةِ الأخرى */
+.bridge{
+  display:flex; gap:1rem; align-items:center; flex-wrap:wrap;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:1.2rem;
+}
+.bridge div{flex:1 1 16rem; min-width:0}
+.bridge b{display:block; margin-bottom:0.3rem}
+.bridge p{color:var(--muted); font-size:0.9rem}
 
-    footer { text-align: center; color: var(--text-muted); padding: 1.5rem 0 0.5rem; }
-    footer a { color: var(--primary-glow); }
+footer{padding:2rem 0 0; color:var(--dim); font-size:0.87rem}
+footer a{color:var(--muted)}
+footer p+p{margin-top:0.4rem}
 
-    [data-lang] { display: none; }
-    [data-lang].active-lang { display: block; }
-    span[data-lang].active-lang, strong[data-lang].active-lang { display: inline; }
-
-    /* ── الهاتف ─────────────────────────────────────────────────────────────
-       شريطُ الخيارات `flex-wrap: wrap`، فيتكسّرُ على الشاشةِ الضيّقةِ إلى أربعةِ
-       صفوفٍ تلتهمُها قبلَ أن يُقرَأَ سطرٌ من المحتوى — والموقعُ موقعُ تطبيقِ هاتفٍ
-       يُفتَحُ من الهاتفِ أوّلاً. فصارَ صفّاً واحداً يُمرَّرُ أفقيّاً بالإصبع:
-       ارتفاعُه سطرٌ مهما كثُرت الأزرارُ ولا يُخفي منها شيئاً. */
-    @media (max-width: 760px) {
-      body { padding: 0.8rem; }
-      .glass-card { padding: 1.3rem; border-radius: var(--radius-2xl); }
-
-      .nav-glass {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        justify-content: flex-start;
-        gap: 0.4rem;
-        padding: 0.5rem 0.6rem;
-        top: 0.5rem;
-        scrollbar-width: none;
-        -webkit-overflow-scrolling: touch;
-      }
-      .nav-glass::-webkit-scrollbar { display: none; }
-      .nav-btn, .lang-btn {
-        flex: 0 0 auto;
-        padding: 0.42rem 0.8rem;
-        font-size: 0.85rem;
-        white-space: nowrap;
-      }
-
-      .hero-title { font-size: 2rem; line-height: 1.25; }
-      .icon-frame { width: 96px; height: 96px; }
-      .section-title { font-size: 1.15rem; line-height: 1.5; flex-wrap: wrap; }
-      .download-link { word-break: break-word; }
-      pre, code { font-size: 0.78rem; word-break: break-all; white-space: pre-wrap; }
-      table { display: block; overflow-x: auto; }
-    }
-  </style>
+@media (min-width:640px){
+  body{padding:0 1.5rem 5rem}
+  .get-file{white-space:nowrap; overflow-wrap:normal; overflow:hidden; text-overflow:ellipsis}
+  .bar{margin:0 -1.5rem; padding:0.55rem 1.5rem}
+  .feats{grid-template-columns:1fr 1fr; column-gap:2.2rem}
+  .shots{grid-template-columns:1fr 1fr}
+  .row{grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:1rem}
+  .sha{grid-column:1/-1}
+}
+@media (min-width:900px){
+  .hero{padding:3.6rem 0 2.8rem}
+  .hero-top img{width:74px; height:74px}
+  .get{max-width:34rem}
+  .feats{grid-template-columns:repeat(3,1fr)}
+  .row{grid-template-columns:minmax(0,1fr) auto auto}
+  .sha{grid-column:auto; justify-self:end}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important; animation:none!important}
+  .get::after{display:none}
+}
+</style>
 </head>
 <body>
-  <div class="main-container">
 
-    <div class="nav-glass">
-      <a href="#features" class="nav-btn"><i class="fas fa-star"></i> <span data-lang="ar" class="active-lang">المزايا</span><span data-lang="en">Features</span></a>
-      <a href="#download" class="nav-btn"><i class="fas fa-download"></i> <span data-lang="ar" class="active-lang">التنزيل</span><span data-lang="en">Download</span></a>
-      <a href="#install" class="nav-btn"><i class="fas fa-mobile-screen"></i> <span data-lang="ar" class="active-lang">التثبيت</span><span data-lang="en">Install</span></a>
-      <a href="#desktop" class="nav-btn"><i class="fa-brands fa-linux"></i> <span data-lang="ar" class="active-lang">الحاسوب</span><span data-lang="en">Desktop</span></a>
-      <button class="lang-btn active" id="btnAR" onclick="setLang('ar')">AR</button>
-      <button class="lang-btn" id="btnEN" onclick="setLang('en')">EN</button>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></symbol>
+  <symbol id="i-cp" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></symbol>
+  <symbol id="i-gh" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5a10.5 10.5 0 0 0-3.32 20.47c.53.1.72-.23.72-.5v-1.9c-2.93.64-3.55-1.26-3.55-1.26-.48-1.22-1.17-1.54-1.17-1.54-.96-.66.07-.64.07-.64 1.06.07 1.62 1.09 1.62 1.09.94 1.62 2.47 1.15 3.07.88.1-.69.37-1.15.67-1.42-2.34-.26-4.8-1.17-4.8-5.2 0-1.15.41-2.09 1.09-2.83-.11-.27-.47-1.34.1-2.8 0 0 .88-.28 2.9 1.08a10 10 0 0 1 5.28 0c2.01-1.36 2.9-1.08 2.9-1.08.57 1.46.21 2.53.1 2.8.68.74 1.09 1.68 1.09 2.83 0 4.04-2.47 4.93-4.82 5.19.38.33.72.97.72 1.96v2.9c0 .28.19.61.73.5A10.5 10.5 0 0 0 12 1.5Z"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-desk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></symbol>
+</svg>
+
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="brand" href="#top"><img src="site-assets/gmd-icon.png" alt=""><span>GMD</span></a>
+    <a class="nav" href="#features"><span data-lang="ar">المزايا</span><span data-lang="en">Features</span></a>
+    <a class="nav" href="#downloads"><span data-lang="ar">الحزم</span><span data-lang="en">Packages</span></a>
+    <a class="nav" href="#install"><span data-lang="ar">التثبيت</span><span data-lang="en">Install</span></a>
+    <a class="nav" href="#desktop"><span data-lang="ar">الحاسوب</span><span data-lang="en">Desktop</span></a>
+    <div class="langs">
+      <button class="lang" id="btnAR" aria-pressed="true" onclick="setLang('ar')">AR</button>
+      <button class="lang" id="btnEN" aria-pressed="false" onclick="setLang('en')">EN</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap" id="top">
+
+  <div class="hero">
+    <div class="hero-top">
+      <img src="site-assets/gmd-icon.png" alt="GMD">
+      <h1>
+        <span data-lang="ar">GMD لأندرويد</span><span data-lang="en">GMD for Android</span>
+        <span class="sub" data-lang="ar">منزّل وسائط غنو</span><span class="sub" data-lang="en">GNU Media Downloader</span>
+      </h1>
+    </div>
+    <p class="lede" data-lang="ar">نزّل ما تشاهده إلى هاتفك، ثمّ اقتصصه واسمعه من معرض التطبيق نفسه. بلا إعلانات ولا حساب ولا تتبُّع.</p>
+    <p class="lede" data-lang="en">Bring what you watch onto your phone, then trim it and listen to it in the app's own gallery. No ads, no account, no tracking.</p>
+
+    <div class="chips">
+      <span class="chip on">26.9.2</span>
+      <span class="chip"><span data-lang="ar">إصدار مستقرّ</span><span data-lang="en">Stable release</span></span>
+      <span class="chip">GPL v3</span>
+      <span class="chip"><span data-lang="ar">أندرويد 7.0 فما فوق</span><span data-lang="en">Android 7.0 and up</span></span>
     </div>
 
-    <div class="glass-card hero-section">
-      <div class="icon-frame"><img src="site-assets/gmd-icon.png" alt="GMD"></div>
-      <h1 class="hero-title">GMD لأندرويد</h1>
-      <div data-lang="ar" class="active-lang"><p class="hero-sub">منزّل وسائط حرّ، عربيّ الواجهة، بلا إعلانات ولا تتبُّع</p></div>
-      <div data-lang="en"><p class="hero-sub">A free media downloader for Android — no ads, no tracking</p></div>
-      <div class="badges">
-        <span class="badge" style="background:rgba(34,197,94,0.15); border-color:rgba(34,197,94,0.4); color:#86efac;">v26.9.2</span>
-        <span class="badge">GPL v3</span>
-        <span class="badge"><span data-lang="ar" class="active-lang">أندرويد 7.0 فما فوق</span><span data-lang="en">Android 7.0+</span></span>
-        <span class="badge">yt-dlp · ffmpeg · aria2c</span>
-      </div>
-      <div style="margin-top:1.6rem;">
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-arm64-v8a-release.apk" class="download-link">⬇️ <span data-lang="ar" class="active-lang">تنزيل الحزمة (arm64)</span><span data-lang="en">Download (arm64)</span></a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE" class="download-link ghost"><i class="fa-brands fa-github"></i> <span data-lang="ar" class="active-lang">المصدر</span><span data-lang="en">Source</span></a>
-      </div>
+    <a class="get" href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-arm64-v8a-release.apk">
+      <span class="get-ic"><svg><use href="#i-dl"/></svg></span>
+      <span class="get-txt">
+        <span class="get-lead" data-lang="ar">نزّل GMD لهاتفك</span><span class="get-lead" data-lang="en">Get GMD for your phone</span>
+        <span class="get-file mono">GMD-PHONE-v26.9.2-arm64-v8a-release.apk</span>
+      </span>
+      <span class="get-size mono">43.0 MB</span>
+    </a>
+
+    <div class="alt">
+      <a href="#downloads"><svg><use href="#i-dl"/></svg><span data-lang="ar">حزم المعماريّات الأخرى</span><span data-lang="en">Other architectures</span></a>
+      <a href="https://github.com/SalehGNUTUX/GMD-PHONE"><svg><use href="#i-gh"/></svg><span data-lang="ar">المستودع</span><span data-lang="en">Repository</span></a>
+      <a href="https://salehgnutux.github.io/GMD/"><svg><use href="#i-desk"/></svg><span data-lang="ar">نسخة الحاسوب</span><span data-lang="en">Desktop edition</span></a>
     </div>
-
-    <div class="glass-card" style="border-color:rgba(34,197,94,0.35);">
-      <div class="section-title" style="color:#86efac;"><span>✅</span> <span data-lang="ar" class="active-lang">إصدار مستقرّ</span><span data-lang="en">Stable release</span></div>
-      <div data-lang="ar" class="active-lang">
-        <p><strong>26.9.2</strong> إصدار مستقرّ، سبقته ستّ عشرة جولة تجربة على جهاز حقيقيّ. وفيه المعرض والمشغّل الصوتيّ الداخليّ وقوائم التشغيل من صنعك، واقتصاص جزء عند التنزيل أو من ملفّ في جهازك، وسجلّ لكلّ محاولة. وإن واجهتَ عطباً فانسخ نصّه بزرّ «انسخ الخطأ» وأرسله في <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues" style="color:var(--primary-glow);">المسائل</a> — النصّ وحده يكفي لتشخيصه.</p>
-      </div>
-      <div data-lang="en">
-        <p><strong>26.9.2</strong> is a stable release, after sixteen beta rounds tried on a real device. It brings the gallery, the built-in audio player and your own playlists, trimming at download time or from a file on your device, and a log of every attempt. If you hit a failure, copy its text with “Copy the error” and post it in <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues" style="color:var(--primary-glow);">Issues</a> — that text alone is enough to diagnose it.</p>
-      </div>
-    </div>
-
-    <div class="glass-card" id="features">
-      <div class="section-title"><span>✨</span> <span data-lang="ar" class="active-lang">المزايا</span><span data-lang="en">Features</span></div>
-      <div class="features-grid">
-        <div class="feature-item"><span>📹</span> <strong data-lang="ar" class="active-lang">فيديو حتى 1080p</strong><strong data-lang="en">Video up to 1080p</strong></div>
-        <div class="feature-item"><span>🎵</span> <strong data-lang="ar" class="active-lang">صوت بستّ صيغ</strong><strong data-lang="en">Audio, six formats</strong></div>
-        <div class="feature-item"><span>📤</span> <strong data-lang="ar" class="active-lang">مشاركة الرابط إلى GMD</strong><strong data-lang="en">Share link into GMD</strong></div>
-        <div class="feature-item"><span>📊</span> <strong data-lang="ar" class="active-lang">معلومات قبل التنزيل</strong><strong data-lang="en">Info before download</strong></div>
-        <div class="feature-item"><span>🔔</span> <strong data-lang="ar" class="active-lang">تنزيل في الخلفيّة</strong><strong data-lang="en">Background download</strong></div>
-        <div class="feature-item"><span>📁</span> <strong data-lang="ar" class="active-lang">حفظ في معرض الوسائط</strong><strong data-lang="en">Saved to gallery</strong></div>
-        <div class="feature-item"><span>🖼️</span> <strong data-lang="ar" class="active-lang">معرض داخل التطبيق</strong><strong data-lang="en">In-app gallery</strong></div>
-        <div class="feature-item"><span>🕘</span> <strong data-lang="ar" class="active-lang">سجلّ التنزيلات</strong><strong data-lang="en">Download history</strong></div>
-        <div class="feature-item"><span>✂️</span> <strong data-lang="ar" class="active-lang">اقتصاص جزء</strong><strong data-lang="en">Clip a part</strong></div>
-        <div class="feature-item"><span>📃</span> <strong data-lang="ar" class="active-lang">قوائم التشغيل</strong><strong data-lang="en">Playlists</strong></div>
-        <div class="feature-item"><span>🔄</span> <strong data-lang="ar" class="active-lang">تحديث ذاتيّ</strong><strong data-lang="en">Self-update</strong></div>
-        <div class="feature-item"><span>🌍</span> <strong data-lang="ar" class="active-lang">عربي/English</strong><strong data-lang="en">Arabic/English</strong></div>
-      </div>
-      <div class="note">
-        <div data-lang="ar" class="active-lang">الأدوات كلّها داخل الحزمة — yt-dlp وffmpeg وaria2c وبايثون — فلا يطلب التطبيق تثبيت شيء، ولا يحمّل ثنائيّاتٍ عند أوّل تشغيل، ويعمل كلّ شيء على جهازك بلا خادم وسيط.</div>
-        <div data-lang="en">Every tool ships inside the package — yt-dlp, ffmpeg, aria2c and Python — so the app installs nothing and downloads no binaries on first run. Everything runs on your device, with no server in between.</div>
-      </div>
-    </div>
-
-    <div class="glass-card" id="download">
-      <div class="section-title"><span>📦</span> <span data-lang="ar" class="active-lang">أيّ حزمة أنزّل؟</span><span data-lang="en">Which package?</span></div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th><span data-lang="ar" class="active-lang">الحزمة</span><span data-lang="en">Package</span></th>
-              <th><span data-lang="ar" class="active-lang">لمن</span><span data-lang="en">For</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td><code>arm64-v8a</code></td><td><span data-lang="ar" class="active-lang">أغلب هواتف اليوم</span><span data-lang="en">Most phones today</span></td></tr>
-            <tr><td><code>armeabi-v7a</code></td><td><span data-lang="ar" class="active-lang">هواتف قديمة 32-بت</span><span data-lang="en">Older 32-bit phones</span></td></tr>
-            <tr><td><code>x86_64</code></td><td><span data-lang="ar" class="active-lang">المحاكيات وبعض الأجهزة اللوحيّة</span><span data-lang="en">Emulators, some tablets</span></td></tr>
-            <tr><td><code>universal</code></td><td><span data-lang="ar" class="active-lang">إن لم تعرف معماريّة جهازك — أكبر حجماً</span><span data-lang="en">If unsure — larger file</span></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div style="display:flex; flex-wrap:wrap; gap:0.7rem; margin-top:1rem;">
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-arm64-v8a-release.apk" class="download-link">⬇️ arm64-v8a</a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-armeabi-v7a-release.apk" class="download-link ghost">⬇️ armeabi-v7a</a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-x86_64-release.apk" class="download-link ghost">⬇️ x86_64</a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-x86-release.apk" class="download-link ghost">⬇️ x86</a>
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-universal-release.apk" class="download-link ghost">⬇️ universal</a>
-      </div>
-      <div style="margin-top:0.9rem;">
-        <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/tag/v26.9.2" class="download-link ghost"><span data-lang="ar" class="active-lang">صفحة الإصدار</span><span data-lang="en">Release page</span></a>
-      </div>
-      <div class="note">
-        <div data-lang="ar" class="active-lang">مع كلّ إصدار ملفُّ <code>SHA256SUMS.txt</code>. قارن بصمة الحزمة به قبل التثبيت إن أردت التأكّد من أنّها وصلت كما بُنيَت.</div>
-        <div data-lang="en">Each release ships a <code>SHA256SUMS.txt</code>. Compare the package checksum against it if you want to be sure it arrived as it was built.</div>
-      </div>
-    </div>
-
-    <div class="glass-card" id="install">
-      <div class="section-title"><span>📲</span> <span data-lang="ar" class="active-lang">التثبيت</span><span data-lang="en">Installing</span></div>
-      <div data-lang="ar" class="active-lang">
-        <ol class="steps">
-          <li>نزّل ملفّ APK المناسب لجهازك من صفحة الإصدارات.</li>
-          <li>افتح الملفّ؛ سيطلب أندرويد إذن <strong>تثبيت التطبيقات المجهولة</strong> لمتصفّحك أو مدير ملفّاتك.</li>
-          <li>امنح الإذن ثمّ أكمل التثبيت.</li>
-          <li>عند أوّل تشغيل يهيّئ التطبيق أدواته — يستغرق ذلك لحظات.</li>
-        </ol>
-      </div>
-      <div data-lang="en">
-        <ol class="steps">
-          <li>Download the APK that matches your device from the releases page.</li>
-          <li>Open it; Android will ask to allow <strong>installing unknown apps</strong> for your browser or file manager.</li>
-          <li>Grant it, then finish the install.</li>
-          <li>On first launch the app sets up its tools — this takes a moment.</li>
-        </ol>
-      </div>
-      <div class="note">
-        <div data-lang="ar" class="active-lang">هذا الطلب يظهر لأنّ GMD لا يُوزَّع عبر متجر، لا لأنّ في الحزمة شيئاً. والمصدر كلّه مفتوح ويمكنك بناء الحزمة بنفسك.</div>
-        <div data-lang="en">That prompt appears because GMD is not distributed through a store — not because of anything in the package. The source is open and you can build it yourself.</div>
-      </div>
-    </div>
-
-    <div class="glass-card" id="desktop">
-      <div class="section-title"><span>🖥️</span> <span data-lang="ar" class="active-lang">ونسخة الحاسوب؟</span><span data-lang="en">And the desktop edition?</span></div>
-      <div data-lang="ar" class="active-lang">
-        <p><strong>GMD لغنو/لينكس</strong> هي النسخة الأصل، وتزيد على نسخة الهاتف بتحويل الملفّات المحلّيّة وقصّ الوسائط وخيارات متقدّمة، وتُوزَّع حزمَ AppImage وDEB وRPM. النسختان تتشاركان سلسلة الإصدار نفسها.</p>
-      </div>
-      <div data-lang="en">
-        <p><strong>GMD for GNU/Linux</strong> is the original edition. It adds local file conversion, media trimming and advanced options, and ships as AppImage, DEB and RPM. Both editions share the same version series.</p>
-      </div>
-      <div style="margin-top:1.2rem;">
-        <a href="https://salehgnutux.github.io/GMD/" class="download-link">🖥️ <span data-lang="ar" class="active-lang">موقع نسخة الحاسوب</span><span data-lang="en">Desktop site</span></a>
-        <a href="https://github.com/SalehGNUTUX/GMD/releases" class="download-link ghost">⬇️ <span data-lang="ar" class="active-lang">تنزيل للحاسوب</span><span data-lang="en">Desktop downloads</span></a>
-      </div>
-    </div>
-
-    <footer>
-      <div data-lang="ar" class="active-lang">
-        <p>صنعه <strong>GNUTUX</strong> · برنامج حرّ برخصة <a href="https://github.com/SalehGNUTUX/GMD-PHONE/blob/main/LICENSE">GNU GPL v3</a></p>
-      </div>
-      <div data-lang="en">
-        <p>Made by <strong>GNUTUX</strong> · Free software under the <a href="https://github.com/SalehGNUTUX/GMD-PHONE/blob/main/LICENSE">GNU GPL v3</a></p>
-      </div>
-    </footer>
-
   </div>
 
-  <script>
-    function setLang(lang) {
-      document.documentElement.lang = lang;
-      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-      document.querySelectorAll('[data-lang]').forEach(function (el) {
-        el.classList.toggle('active-lang', el.dataset.lang === lang);
-      });
-      document.getElementById('btnAR').classList.toggle('active', lang === 'ar');
-      document.getElementById('btnEN').classList.toggle('active', lang === 'en');
-      try { localStorage.setItem('gmd-lang', lang); } catch (e) {}
-    }
-    try {
-      var saved = localStorage.getItem('gmd-lang');
-      if (saved) setLang(saved);
-    } catch (e) {}
-  </script>
+  <section id="stable">
+    <div class="head">
+      <h2><span data-lang="ar">لماذا صار مستقرًّا</span><span data-lang="en">Why it is stable now</span></h2>
+      <span class="meta"><span data-lang="ar">بعد 16 جولة تجربة</span><span data-lang="en">After 16 beta rounds</span></span>
+    </div>
+    <p class="prose" data-lang="ar">سبقت الإصدارَ ستّ عشرة جولةَ تجربةٍ على جهاز حقيقيّ، حتّى استقرّ التنزيل والاقتصاص والمعرض والمشغّل. وإن واجهتَ عطبًا فانسخ نصّه بزرّ «انسخ الخطأ» داخل التطبيق وأرسله في <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues">مسائل المستودع</a>؛ النصّ وحده يكفي لتشخيصه.</p>
+    <p class="prose" data-lang="en">Sixteen beta rounds on a real device came before this release, until downloading, trimming, the gallery and the player settled. If you hit a failure, copy its text with “Copy the error” inside the app and post it in <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues">the repository issues</a>; that text alone is enough to diagnose it.</p>
+  </section>
+
+  <section id="features">
+    <div class="head">
+      <h2><span data-lang="ar">ما يفعله</span><span data-lang="en">What it does</span></h2>
+      <span class="meta"><span data-lang="ar">12 بابًا</span><span data-lang="en">12 capabilities</span></span>
+    </div>
+    <div class="feats">
+      <div class="feat"><b data-lang="ar">الفيديو</b><b data-lang="en">Video</b><span data-lang="ar">حتّى 1080p، وتختار الجودة ممّا يتيحه الموقع.</span><span data-lang="en">Up to 1080p, quality picked from what the site offers.</span></div>
+      <div class="feat"><b data-lang="ar">الصوت</b><b data-lang="en">Audio</b><span data-lang="ar">MP3 وM4A وOpus وFLAC وWAV وVorbis، بغلاف المقطع.</span><span data-lang="en">MP3, M4A, Opus, FLAC, WAV and Vorbis, with the cover art.</span></div>
+      <div class="feat"><b data-lang="ar">القوائم والقنوات</b><b data-lang="en">Playlists and channels</b><span data-lang="ar">يظهر كلّ مقطع أوّلًا بأوّل حين يكتمل، بلا انتظار القائمة كلّها.</span><span data-lang="en">Each item lands as it finishes, without waiting for the whole list.</span></div>
+      <div class="feat"><b data-lang="ar">المشاركة إلى GMD</b><b data-lang="en">Share into GMD</b><span data-lang="ar">شارك الرابط من أيّ تطبيق، يفتح GMD وقد جهّزه.</span><span data-lang="en">Share a link from any app and GMD opens with it ready.</span></div>
+      <div class="feat"><b data-lang="ar">الاقتصاص</b><b data-lang="en">Trimming</b><span data-lang="ar">جزء من رابط أو من ملفّ في جهازك، بساعات ودقائق وثوانٍ.</span><span data-lang="en">A part of a link or of a file on your device, in hours, minutes and seconds.</span></div>
+      <div class="feat"><b data-lang="ar">المعلومات قبل التنزيل</b><b data-lang="en">Info before downloading</b><span data-lang="ar">المدّة والصيغ والحجم، تُجلَب بمجرّد لصق الرابط.</span><span data-lang="en">Duration, formats and size, fetched the moment you paste.</span></div>
+      <div class="feat"><b data-lang="ar">التنزيل في الخلفيّة</b><b data-lang="en">Background downloads</b><span data-lang="ar">يكمل والشاشة مطفأة، ويخبرك بالتقدّم في التنبيهات.</span><span data-lang="en">It carries on with the screen off, and reports progress in a notification.</span></div>
+      <div class="feat"><b data-lang="ar">المعرض</b><b data-lang="en">Gallery</b><span data-lang="ar">ما نزّلته مرتّبًا في مجلّداته بصور مصغّرة، ومحفوظ في معرض الهاتف.</span><span data-lang="en">What you downloaded, in its folders with thumbnails, and saved to the phone's own gallery.</span></div>
+      <div class="feat"><b data-lang="ar">المشغّل</b><b data-lang="en">Player</b><span data-lang="ar">صوت داخل التطبيق، وقوائم تشغيل من صنعك، ويتذكّر موضع وقوفك.</span><span data-lang="en">Audio inside the app, playlists of your own, and it remembers where you stopped.</span></div>
+      <div class="feat"><b data-lang="ar">السجلّ</b><b data-lang="en">History</b><span data-lang="ar">كلّ محاولة بنتيجتها، وتنبيه إن كنت نزّلت هذا الرابط من قبل.</span><span data-lang="en">Every attempt with its result, and a warning if you already took this link.</span></div>
+      <div class="feat"><b data-lang="ar">التحديث</b><b data-lang="en">Updates</b><span data-lang="ar">يفحص الإصدارات من داخله وينزّل الجديد بنفسه.</span><span data-lang="en">It checks releases from inside and fetches the new one itself.</span></div>
+      <div class="feat"><b data-lang="ar">اللغتان</b><b data-lang="en">Both languages</b><span data-lang="ar">عربيّة من اليمين وإنجليزيّة من اليسار، تُبدَّل وقت التشغيل.</span><span data-lang="en">Arabic right-to-left and English left-to-right, switched at runtime.</span></div>
+    </div>
+    <div class="note">
+      <span data-lang="ar">الأدوات كلّها داخل الحزمة: <code>yt-dlp</code> و<code>ffmpeg</code> و<code>aria2c</code> وبايثون. فلا يطلب التطبيق تثبيت شيء، ولا ينزّل ثنائيّات عند أوّل تشغيل، والعمل كلّه على جهازك بلا خادم وسيط.</span>
+      <span data-lang="en">Every tool ships inside the package: <code>yt-dlp</code>, <code>ffmpeg</code>, <code>aria2c</code> and Python. The app installs nothing, downloads no binaries on first run, and does all the work on your device with no server in between.</span>
+    </div>
+  </section>
+
+  <section id="downloads">
+    <div class="head">
+      <h2><span data-lang="ar">حزم الإصدار 26.9.2</span><span data-lang="en">Release 26.9.2</span></h2>
+      <span class="meta"><span data-lang="ar">5 حزم</span><span data-lang="en">5 packages</span></span>
+    </div>
+
+    <div class="arch">
+      <div class="arch-h">
+        <b>APK</b>
+        <span data-lang="ar">اختر ما يوافق معماريّة هاتفك</span>
+        <span data-lang="en">Pick the one that matches your phone</span>
+      </div>
+
+      <div class="row">
+        <span>
+          <a class="row-name" href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-arm64-v8a-release.apk"><svg><use href="#i-dl"/></svg>GMD-PHONE-v26.9.2-arm64-v8a-release.apk</a>
+          <span class="row-note" data-lang="ar">أغلب هواتف اليوم. ابدأ بها إن لم تكن تدري.</span>
+          <span class="row-note" data-lang="en">Most phones today. Start here if you are unsure.</span>
+        </span>
+        <span class="row-size mono">43.0 MB</span>
+        <span class="sha"><code>db115a7d415a…d996fdf</code><button class="copy" data-copy="db115a7d415abd73f650b20810a9251b4f01013aa474abb4ef4068745d996fdf" title="نسخ البصمة / Copy hash"><svg class="i-cp"><use href="#i-cp"/></svg><svg class="i-ok"><use href="#i-ok"/></svg></button></span>
+      </div>
+
+      <div class="row">
+        <span>
+          <a class="row-name" href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-armeabi-v7a-release.apk"><svg><use href="#i-dl"/></svg>GMD-PHONE-v26.9.2-armeabi-v7a-release.apk</a>
+          <span class="row-note" data-lang="ar">هواتف أقدم بمعماريّة 32-بت.</span>
+          <span class="row-note" data-lang="en">Older 32-bit phones.</span>
+        </span>
+        <span class="row-size mono">40.4 MB</span>
+        <span class="sha"><code>f27adf5ddfa6…ad874da</code><button class="copy" data-copy="f27adf5ddfa6a65e7eec40974972b142709179acd09ef0ba5f127e341ad874da" title="نسخ البصمة / Copy hash"><svg class="i-cp"><use href="#i-cp"/></svg><svg class="i-ok"><use href="#i-ok"/></svg></button></span>
+      </div>
+
+      <div class="row">
+        <span>
+          <a class="row-name" href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-x86_64-release.apk"><svg><use href="#i-dl"/></svg>GMD-PHONE-v26.9.2-x86_64-release.apk</a>
+          <span class="row-note" data-lang="ar">المحاكيات وبعض الأجهزة اللوحيّة.</span>
+          <span class="row-note" data-lang="en">Emulators and some tablets.</span>
+        </span>
+        <span class="row-size mono">45.4 MB</span>
+        <span class="sha"><code>17b272267b7d…2aab207</code><button class="copy" data-copy="17b272267b7d5e78fa28b311324d32e01d2d7c85b288dc5e1aa2d57822aab207" title="نسخ البصمة / Copy hash"><svg class="i-cp"><use href="#i-cp"/></svg><svg class="i-ok"><use href="#i-ok"/></svg></button></span>
+      </div>
+
+      <div class="row">
+        <span>
+          <a class="row-name" href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-x86-release.apk"><svg><use href="#i-dl"/></svg>GMD-PHONE-v26.9.2-x86-release.apk</a>
+          <span class="row-note" data-lang="ar">محاكيات 32-بت، وهي نادرة.</span>
+          <span class="row-note" data-lang="en">32-bit emulators, which are rare.</span>
+        </span>
+        <span class="row-size mono">44.6 MB</span>
+        <span class="sha"><code>3ba705d4875a…0aca9b2</code><button class="copy" data-copy="3ba705d4875a9d8259d6ae352e7a2b98cacd7b94a852801b71a3154b50aca9b2" title="نسخ البصمة / Copy hash"><svg class="i-cp"><use href="#i-cp"/></svg><svg class="i-ok"><use href="#i-ok"/></svg></button></span>
+      </div>
+
+      <div class="row">
+        <span>
+          <a class="row-name" href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/GMD-PHONE-v26.9.2-universal-release.apk"><svg><use href="#i-dl"/></svg>GMD-PHONE-v26.9.2-universal-release.apk</a>
+          <span class="row-note" data-lang="ar">تعمل على الجميع لأنّها تحمل المعماريّات كلّها، ولذلك هي الأكبر.</span>
+          <span class="row-note" data-lang="en">Runs anywhere because it carries every architecture, which is why it is the largest.</span>
+        </span>
+        <span class="row-size mono">155.1 MB</span>
+        <span class="sha"><code>19b4865442ea…f4f78f7</code><button class="copy" data-copy="19b4865442ea9b27e8b712810ce32c40f5c49d1af06c2309270320c0af4f78f7" title="نسخ البصمة / Copy hash"><svg class="i-cp"><use href="#i-cp"/></svg><svg class="i-ok"><use href="#i-ok"/></svg></button></span>
+      </div>
+    </div>
+
+    <div class="alt" style="margin-top:1.3rem">
+      <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/download/v26.9.2/SHA256SUMS.txt"><span class="mono">SHA256SUMS.txt</span></a>
+      <a href="https://github.com/SalehGNUTUX/GMD-PHONE/releases/tag/v26.9.2"><svg><use href="#i-ext"/></svg><span data-lang="ar">صفحة الإصدار</span><span data-lang="en">Release page</span></a>
+    </div>
+
+    <div class="note">
+      <span data-lang="ar">البصمات أعلاه مقتطعة للعرض، وكاملة في ملفّ <code>SHA256SUMS.txt</code>. وزرّ النسخ ينسخ البصمة كاملة لا المقتطع.</span>
+      <span data-lang="en">The hashes above are shortened for reading; the full ones are in <code>SHA256SUMS.txt</code>. The copy button copies the whole hash, not the shortened form.</span>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="head">
+      <h2><span data-lang="ar">التثبيت</span><span data-lang="en">Installing</span></h2>
+      <span class="meta"><span data-lang="ar">4 خطوات</span><span data-lang="en">4 steps</span></span>
+    </div>
+    <ol class="steps" data-lang="ar">
+      <li>نزّل ملفّ APK الموافق لهاتفك من القائمة أعلاه.</li>
+      <li>افتح الملفّ؛ يطلب أندرويد إذن <strong>تثبيت التطبيقات المجهولة</strong> لمتصفّحك أو لمدير ملفّاتك.</li>
+      <li>امنح الإذن، ثمّ أكمل التثبيت.</li>
+      <li>عند أوّل تشغيل يهيّئ التطبيق أدواته، وذلك يستغرق لحظات مرّةً واحدة.</li>
+    </ol>
+    <ol class="steps" data-lang="en">
+      <li>Download the APK that matches your phone from the list above.</li>
+      <li>Open it; Android asks to allow <strong>installing unknown apps</strong> for your browser or file manager.</li>
+      <li>Grant that, then finish the install.</li>
+      <li>On first launch the app sets up its tools, which takes a moment, once.</li>
+    </ol>
+    <div class="note">
+      <span data-lang="ar">هذا الطلب يظهر لأنّ GMD لا يُوزَّع عبر متجر، لا لأنّ في الحزمة شيئًا. والمصدر كلّه مفتوح، ويمكنك بناء الحزمة بنفسك من المستودع.</span>
+      <span data-lang="en">That prompt appears because GMD is not distributed through a store, not because of anything in the package. The source is open and you can build it yourself from the repository.</span>
+    </div>
+  </section>
+
+  <section id="desktop">
+    <div class="head">
+      <h2><span data-lang="ar">وعلى حاسوبك</span><span data-lang="en">And on your computer</span></h2>
+    </div>
+    <div class="bridge">
+      <div>
+        <b data-lang="ar">GMD لغنو/لينكس 26.9.1</b><b data-lang="en">GMD for GNU/Linux 26.9.1</b>
+        <p data-lang="ar">النسخة الأصل، وتزيد على نسخة الهاتف بتحويل ملفّاتك المحلّيّة وخيارات متقدّمة، وتُوزَّع حزم AppImage وDEB وRPM لمعماريّتَي x86_64 و arm64.</p>
+        <p data-lang="en">The original edition. It adds conversion of your local files and advanced options, and ships as AppImage, DEB and RPM for both x86_64 and arm64.</p>
+      </div>
+      <div class="alt">
+        <a href="https://salehgnutux.github.io/GMD/"><svg><use href="#i-desk"/></svg><span data-lang="ar">موقع نسخة الحاسوب</span><span data-lang="en">Desktop site</span></a>
+        <a href="https://github.com/SalehGNUTUX/GMD/releases/latest"><svg><use href="#i-dl"/></svg><span data-lang="ar">تنزيل للحاسوب</span><span data-lang="en">Desktop downloads</span></a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      <span data-lang="ar">صنعه <strong>GNUTUX</strong>، برنامج حرّ برخصة <a href="https://github.com/SalehGNUTUX/GMD-PHONE/blob/main/LICENSE">GNU GPL v3</a>.</span>
+      <span data-lang="en">Made by <strong>GNUTUX</strong>, free software under the <a href="https://github.com/SalehGNUTUX/GMD-PHONE/blob/main/LICENSE">GNU GPL v3</a>.</span>
+    </p>
+    <p>
+      <span data-lang="ar">للعطب أو الاقتراح: <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues">مسائل المستودع</a>.</span>
+      <span data-lang="en">Bugs and suggestions: <a href="https://github.com/SalehGNUTUX/GMD-PHONE/issues">repository issues</a>.</span>
+    </p>
+  </footer>
+
+</div>
+
+<script>
+function setLang(lang){
+  document.documentElement.lang = lang;
+  document.documentElement.dir  = lang === 'ar' ? 'rtl' : 'ltr';
+  document.getElementById('btnAR').setAttribute('aria-pressed', lang === 'ar');
+  document.getElementById('btnEN').setAttribute('aria-pressed', lang === 'en');
+  try { localStorage.setItem('gmd-lang', lang); } catch (e) {}
+}
+try { var saved = localStorage.getItem('gmd-lang'); if (saved === 'en' || saved === 'ar') setLang(saved); } catch (e) {}
+
+/* النسخُ يُجيبُ في مكانِه: تنقلبُ الأيقونةُ صحّاً أخضرَ ثمّ تعودُ. ولا تُستعمَلُ
+   `alert()` — نافذةٌ تُوقِفُ الصفحةَ كلَّها لتقولَ «تمّ». */
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('[data-copy]');
+  if (!btn) return;
+  navigator.clipboard.writeText(btn.dataset.copy).then(function () {
+    btn.classList.add('ok');
+    setTimeout(function () { btn.classList.remove('ok'); }, 1400);
+  });
+});
+</script>
+
 </body>
 </html>
